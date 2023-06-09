@@ -1,0 +1,3 @@
+= Setup
+include::master@tekton-tutorial:ROOT:partial$_attributes.adoc[]
+include::master@tekton-tutorial:ROOT:partial$_setup.adoc[]

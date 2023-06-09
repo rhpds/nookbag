@@ -1,0 +1,35 @@
+runtime:
+  cache_dir: ./.cache/antora
+
+site:
+  title: Nookbag example
+  url: http://localhost:3000
+content:
+  sources:
+    - url: .
+      branches: HEAD
+      start_path: components/header
+asciidoc:
+  attributes:
+    tutorial-namespace: tektontutorial
+    kubernetes-version: v1.23.3
+    release-version: master
+    page-pagination: true
+    tekton-version: v0.24.3
+    triggers-version: v0.14.2
+    kn-version: v0.19.1
+    tekton-cli-version: 0.22.0
+    cli: kubectl
+    openshift-version: 4.8
+    kind-version: v0.9.0
+    minikube-version: v1.25.0
+    tutorial-apps-revision: master
+    openshift-console-url: https://console-openshift-console.apps.example.com
+    etherpad-url: http://example.com
+    workshop-domain: guru.devx.red
+ui:
+  bundle:
+    url: https://github.com/redhat-developer-demos/rhd-tutorial-ui/releases/download/v0.1.9/ui-bundle.zip
+    snapshot: true
+output:
+  dir: ./gh-pages
