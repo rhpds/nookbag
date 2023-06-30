@@ -4,7 +4,7 @@ runtime:
 site:
   title: Nookbag example
   url: https://github.com/rhpds/nookbag
-  start_page: tekton-tutorial::index.adoc
+  start_page: nookbag_base::index.adoc
 content:
   sources:
     - url: .

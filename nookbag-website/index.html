@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+    <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <link rel="stylesheet" type="text/css" href="split.css">
+    <link rel="stylesheet" type="text/css" href="tabs.css">
+    <script>
+        var currentStep = null;
+		const modulesHierarchy = [{key: 'index'}, {key: 'module-1'}, {key: 'module-2'}, {key: 'module-3'}]
+    </script>
+    </head>
+    <body>
+    <div class="content">
+			<div class="split left" style="background: #151515;height: auto;    margin-top: 0;
+            margin-bottom: auto;">
+                <div style="color: white">Progress bar: <span id="currentStep"></span></div>
+				<iframe id="doc"  src="./gh-pages/index.html" onLoad="currentStep = this.contentWindow.location.pathname.split('/').pop().split('.')[0]" width="100%" style="border:none; height: auto;min-height: 300px;"></iframe>
+                <button style="height: auto; border: 1px solid lightgray;display: flex;margin-left: auto; margin-right: 30px;" onclick="alert('Finished: '+currentStep)">Next</button>
+			</div>
+			<div class="split right">
+				<div class="tab">
+					<button class="tablinks" onclick="openTerminal(event, 'terminal_tab')" id="defaultOpen" tabindex="0">Terminal</button>
+					<button class="tablinks" onclick="openTerminal(event, 'codeserver_tab')">VS Code</button>
+					<button class="tablinks" onclick="openTerminal(event, 'docs_tab')">Ansible Docs</button>
+					<button class="tablinks" onclick="openTerminal(event, 'cats_tab')">Cats</button>
+					<!-- <button class="tablinks" onclick="openTerminal(event, 'gitops_tab')">GitOps</button> -->
+					<!-- button class="tablinks" onclick="openTerminal(event, 'terminal_tab_02')">Terminal 2</button -->
+				</div>
+					<!-- <div id="terminal_tab" class="tabcontent"> -->
+					<!-- 	<iframe id="terminal"  src="http://localhost:8001" width="100%" style="border:none;"></iframe> -->
+					<!-- </div> -->
+					<div id="terminal_tab" class="tabcontent">
+						<div class="split top">
+						    <iframe id="terminal_01"  src="http://localhost:8001" width="100%" style="border:none;"></iframe>
+						</div>
+						<div class="split bottom">
+							<iframe id="terminal_02"  src="http://localhost:8002" width="100%" style="border:none;"></iframe>
+						</div>
+					</div>
+					<!-- <div id="terminal_tab_02" class="tabcontent"> -->
+					<!-- 	<iframe id="terminal_2" src="http://localhost:8000" width="100%" style="border:none;"></iframe> -->
+					<div id="codeserver_tab" class="tabcontent">
+                        <iframe id="codeserver" src="http://127.0.0.1:8088" height="100%" width="100%" style="border:none;"></iframe>
+                        <!-- <iframe id="codeserver" src="http://localhost:8088/login" height="90%" width="90%" style="border:none;"></iframe> -->
+                        <!-- <iframe id="codeserver" src="http://localhost:8088/login" height="90%" width="90%"></iframe> -->
+                        <!-- <iframe id="codeserver" src="http://localhost:8088/login" height="90%" width="90%" style="border:none;"></iframe> -->
+                        <!-- <iframe id="codeserver" src="http://localhost:8088/login" height="500px" width="500px%"></iframe> -->
+                        <!-- <iframe id="codeserver" src="http://127.0.0.1:8088" height="500px" width="500px"></iframe> -->
+                        <!-- <iframe id="codeserver" src="http://localhost:8088" height="500px" width="500px"></iframe> -->
+						<!-- <iframe id="codeserver"  src="https://127.0.0.1:8088/" width="100%" style="border:none;" target='_top'></iframe> -->
+						<!-- <iframe id="coderserver" src="./vscode-404.html" width="100%" style="border:none;"></iframe> -->
+					</div>
+					<div id="docs_tab" class="tabcontent">
+						<iframe id="docs" src="https://docs.ansible.com/" width="100%" style="border:none;"></iframe>
+					</div>
+					<div id="cats_tab" class="tabcontent">
+						<iframe id="cats" src="https://cats.com/" width="100%" style="border:none;"></iframe>
+					</div>
+					<!-- <div id="gitops_tab" class="tabcontent"> -->
+					<!-- 	<iframe id="gitops" src="https://openshift-gitops-server-openshift-gitops.apps.cluster-svwzp.sandbox135.opentlc.com/login?return_url=https%3A%2F%2Fopenshift-gitops-server-openshift-gitops.apps.cluster-svwzp.sandbox135.opentlc.com%2Fapplications%3Fview%3Dsummary" width="100%" style="border:none;"></iframe> -->
+					<!-- </div> -->
+						<!-- <div class="split top"> -->
+						<!-- </div> -->
+						<!-- <div class="split bottom"> -->
+							<!-- <iframe id="terminal"  src="http://localhost:8000" width="100%" style="border:none;"></iframe> -->
+						<!-- </div> -->
+						<!-- iframe id="terminal_1" src="http://localhost:8000" width="100%" style="border:none;"></iframe -->
+					<!-- <div id="terminal_tab_02" class="tabcontent"> -->
+					<!-- 	<iframe id="terminal_2" src="http://localhost:8000" width="100%" style="border:none;"></iframe> -->
+					<!-- </div> -->
+				</div>
+			</div>
+		</div>
+
+    <script>
+
+			document.getElementById("defaultOpen").click();
+
+			function openTerminal(evt, cityName) {
+				// Declare all variables
+				var i, tabcontent, tablinks;
+
+				// Get all elements with class="tabcontent" and hide them
+				tabcontent = document.getElementsByClassName("tabcontent");
+				for (i = 0; i < tabcontent.length; i++) {
+					tabcontent[i].style.display = "none";
+				}
+
+				// Get all elements with class="tablinks" and remove the class "active"
+				tablinks = document.getElementsByClassName("tablinks");
+				for (i = 0; i < tablinks.length; i++) {
+					tablinks[i].className = tablinks[i].className.replace(" active", "");
+				}
+
+				// Show the current tab, and add an "active" class to the button that opened the tab
+				document.getElementById(cityName).style.display = "block";
+				evt.currentTarget.className += "active";
+			}
+
+    </script>
+    <script src="https://unpkg.com/split.js/dist/split.min.js"></script>
+    <script>
+      Split(['.left', '.right'], {
+        sizes: [45,55],
+      });
+
+		  Split(['.top', '.bottom'], {
+        sizes: [65,35],
+        direction: 'vertical',
+      });
+      setInterval(() => {
+          const wrapper = document.getElementById("currentStep");
+          if (wrapper) {
+              wrapper.innerText = currentStep + ' progress: ' + modulesHierarchy.findIndex(x => x.key === currentStep);
+          }
+      },100);
+    </script>
+    </body>
+</html>

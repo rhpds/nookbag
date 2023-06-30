@@ -4,11 +4,13 @@ runtime:
 site:
   title: Nookbag example
   url: http://localhost:3000
+  start_page: nookbag_base::index.adoc
+
 content:
   sources:
     - url: .
       branches: HEAD
-      start_path: components/header
+      start_path: lab
 asciidoc:
   attributes:
     tutorial-namespace: tektontutorial
@@ -29,7 +31,7 @@ asciidoc:
     workshop-domain: guru.devx.red
 ui:
   bundle:
-    url: https://github.com/redhat-developer-demos/rhd-tutorial-ui/releases/download/v0.1.9/ui-bundle.zip
+    url: https://github.com/rhpds/nookbag-bundle/releases/download/v0.0.2/bundle.zip
     snapshot: true
 output:
-  dir: ./gh-pages
+  dir: ./nookbag-website/gh-pages

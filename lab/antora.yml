@@ -1,6 +1,6 @@
 name: nookbag_base
 title: Nookbag
-version: master
+version: HEAD
 start_page: ROOT:index.adoc
 attributes:
   source-language: asciidoc@
