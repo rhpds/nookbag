@@ -1,4 +1,5 @@
 showroom_version: HEAD
+showroom_name: nookbag_base
 
 showroom_modules:
   - index

@@ -19,9 +19,10 @@ const defaultServicesUrl = {
 export default function() {
     const ref = useRef();
     const {data, error} = useSWR('./lab-config.yaml', (url) => fetch(url).then(r => r.text()), { suspense: true });
-    const config = yaml.load(data) as {showroom_version: string, showroom_modules: string[], showroom_services: any};
+    const config = yaml.load(data) as {showroom_version: string, showroom_modules: string[], showroom_services: any, showroom_name: string};
     const modules = config.showroom_modules;
     const version = config.showroom_version;
+    const s_name = config.showroom_name;
     const services = config.showroom_services.map(s => typeof s === "string" ? ({key: s, ...defaultServicesUrl[s]}):({key: Object.entries(s)[0][0], url: Object.entries(s)[0][1]}));
     const [progress, setProgress] = useState({inProgress: [], completed: [], notStarted: modules, current: modules[0]});
     const [currentService, setCurrentService] = useState(services?.[0]);
@@ -64,7 +65,7 @@ export default function() {
     }
 
 
-    const initialFile = `./gh-pages/nookbag_base/${version}/${iframeModule}.html`
+    const initialFile = `./antora/${s_name}/${version}/${iframeModule}.html`
 
     if (error) {
         return <div>Configuration file not defined</div>
