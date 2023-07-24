@@ -1,3 +1,0 @@
-= Module 1: Setup
-
-Some module 1 text ...

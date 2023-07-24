@@ -1,3 +1,0 @@
-= Module 2: Installation
-
-Some module 2 text ...

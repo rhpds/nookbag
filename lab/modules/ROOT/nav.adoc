@@ -1,4 +1,0 @@
-* xref:index.adoc[Intro]
-* xref:module-1.adoc[Module 1]
-* xref:module-2.adoc[Module 2]
-* xref:module-3.adoc[Module 3]
