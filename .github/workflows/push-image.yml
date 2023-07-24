@@ -19,9 +19,9 @@ jobs:
         id: image_tags
         run: |
           # Version is a semantic version tag or semantic version with release number
-          # GITHUB_REF will be of the form "refs/tags/zero-ui-v0.1.2" or "refs/tags/zero-ui-v0.1.2-1"
+          # GITHUB_REF will be of the form "refs/tags/nookbag-v0.1.2" or "refs/tags/nookbag-v0.1.2-1"
           # To determine RELEASE, strip off the leading "refs/tags/"
-          RELEASE=${GITHUB_REF#refs/tags/zero-ui-}
+          RELEASE=${GITHUB_REF#refs/tags/nookbag-}
           # To determine VERSION, strip off any release number suffix
           VERSION=${RELEASE/-*/}
           echo "::set-output name=RELEASE::${RELEASE}"
