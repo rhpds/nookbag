@@ -6,13 +6,17 @@ import useSWR from "swr";
 import { Button } from '@patternfly/react-core';
 import './app.css'
 
+const protocol = window.location.protocol;
+const hostname = window.location.hostname;
+const pathname = window.location.pathname;
+
 const defaultServicesUrl = {
     'double_terminal': {
-        url: 'http://localhost:8001',
-        secondary_url: 'http://localhost:8001'
+        url: `${protocol}//${hostname}:8001/wetty`,
+        secondary_url: `${protocol}//${hostname}:8002/wetty`
     },
     'codeserver': {
-        url: 'http://localhost:8088'
+        url: `${protocol}//${hostname}:8003`
     }
 }
 
