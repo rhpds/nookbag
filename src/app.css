@@ -34,7 +34,8 @@
   
   .left {
     min-height: 100%;
-    width: 360px;
+    width: 25%;
+    min-width: 360px;
     border-right: 1px solid #6A6E73;
   }
   
