@@ -13,7 +13,7 @@ showroom_services:
     port: 8001
     secondary_port: 8002
     path: /wetty
-    secondary_path: 
+    secondary_path: /wetty
   - name: codeserver
     port: 8003
   - name: docs
