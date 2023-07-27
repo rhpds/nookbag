@@ -112,10 +112,12 @@
   }
 
   .app-iframe__inner {
-    padding: 0 1rem 4rem;
+    padding: 1rem;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
+    border-top: 1px solid #6A6E73;
+    border-left: 1px solid #6A6E73;
   }
   .app-iframe__inner .pf-c-button {
     padding-top: var(--pf-c-button--PaddingTop);
