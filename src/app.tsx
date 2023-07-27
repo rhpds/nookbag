@@ -6,28 +6,35 @@ import useSWR from "swr";
 import { Button } from '@patternfly/react-core';
 import './app.css'
 
+type service = {name: string, url?: string, port?: string, secondary_port?: string, path?: string, secondary_path?: string, secondary_url?: string};
+
+
 const protocol = window.location.protocol;
 const hostname = window.location.hostname;
-const pathname = window.location.pathname;
 
-const defaultServicesUrl = {
-    'double_terminal': {
-        url: `${protocol}//${hostname}:8001/wetty`,
-        secondary_url: `${protocol}//${hostname}:8002/wetty`
-    },
-    'codeserver': {
-        url: `${protocol}//${hostname}:8003`
+const createUrlsFromVars = (vars: service): service  => {
+    if (vars.url) {
+        return vars;
     }
+    if (!vars.port) {
+        throw Error('Port and url not defined') ;
+    }
+    return {
+        ...vars,
+        url: `${protocol}//${hostname}:${vars.port}${vars.path || ''}`,
+        ...vars.secondary_port ? {secondary_url: `${protocol}//${hostname}:${vars.secondary_port}${vars.secondary_path || ''}`} : {}
+    };
 }
 
 export default function() {
     const ref = useRef();
-    const {data, error} = useSWR('./lab-config.yaml', (url) => fetch(url).then(r => r.text()), { suspense: true });
-    const config = yaml.load(data) as {showroom_version: string, showroom_modules: string[], showroom_services: any, showroom_name: string};
+    const {data, error} = useSWR('./lab-config.yml', (url) => fetch(url).then(r => r.text()), { suspense: true });
+    const config = yaml.load(data) as {showroom_version: string, showroom_modules: string[], showroom_services: service[], showroom_name: string, antora_dir?: string};
     const modules = config.showroom_modules;
+    const antoraDir = config.antora_dir || 'antora';
     const version = config.showroom_version;
     const s_name = config.showroom_name;
-    const services = config.showroom_services.map(s => typeof s === "string" ? ({key: s, ...defaultServicesUrl[s]}):({key: Object.entries(s)[0][0], url: Object.entries(s)[0][1]}));
+    const services = config.showroom_services.map(s => createUrlsFromVars(s));
     const [progress, setProgress] = useState({inProgress: [], completed: [], notStarted: modules, current: modules[0]});
     const [currentService, setCurrentService] = useState(services?.[0]);
     const [iframeModule, setIframeModule] = useState(modules[0]);
@@ -48,15 +55,7 @@ export default function() {
         }
     }
 
-    function handleTabClick(service: ({
-        key: string;
-        url: string;
-        secondary_url: string;
-    } | {
-        key: string;
-        url: string;
-        secondary_url?: undefined;
-    })) {
+    function handleTabClick(service: service) {
         setCurrentService(service)
     }
 
@@ -69,7 +68,7 @@ export default function() {
     }
 
 
-    const initialFile = `./antora/${s_name}/${version}/${iframeModule}.html`
+    const initialFile = `./${antoraDir}/${s_name}/${version}/${iframeModule}.html`
 
     if (error) {
         return <div>Configuration file not defined</div>
@@ -85,7 +84,7 @@ export default function() {
                 </div>
                 <div className="split right">
                     <div className="tab">
-                        {services.map(s => <Button variant="plain" isActive={s.key === currentService.key} key={s.key} className="tablinks" onClick={() => handleTabClick(s)}>{s.key}</Button>)}
+                        {services.map(s => <Button variant="plain" isActive={s.name === currentService.name} key={s.name} className="tablinks" onClick={() => handleTabClick(s)}>{s.name}</Button>)}
                     </div>
                     <div className="tabcontent">
                         {currentService.secondary_url ?

@@ -42,6 +42,14 @@
     min-height: 100%;
     flex-grow: 1;
   }
+
+  .split.top, .split.bottom {
+    flex: 1;
+  }
+
+  .split.bottom {
+    border-top: 1px solid #6A6E73;
+  }
   
   .gutter {
     /* cursor: e-resize; */
@@ -98,6 +106,9 @@
   .tabcontent {
     border: 0;
     height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .app-iframe__inner {
