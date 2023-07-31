@@ -50,10 +50,10 @@ export default function() {
             } else {
                 key = `${page[page.length - 2]}/${page[page.length - 1].split(".")[0]}`
             }
-            const m = modules.find(m => m.name === key);
+           /* const m = modules.find(m => m.name === key);
             if (m.validation_script) {
                 // TODO: hit api to execute validation
-            }
+            }*/
             setProgress({...progress, current: key });
         }
     }
