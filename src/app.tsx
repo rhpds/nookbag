@@ -29,16 +29,16 @@ const createUrlsFromVars = (vars: service): service  => {
 export default function() {
     const ref = useRef();
     const {data, error} = useSWR('./lab-config.yml', (url) => fetch(url).then(r => r.text()), { suspense: true });
-    const config = yaml.load(data) as {showroom_version: string, showroom_modules: string[], showroom_services: service[], showroom_name: string, antora_dir?: string};
+    const config = yaml.load(data) as {showroom_version: string, showroom_modules: {name: string, validation_script?: string}[], showroom_services: service[], showroom_name: string, antora_dir?: string};
     const modules = config.showroom_modules;
     const antoraDir = config.antora_dir || 'antora';
     const version = config.showroom_version;
     const s_name = config.showroom_name;
     const services = config.showroom_services.map(s => createUrlsFromVars(s));
-    const [progress, setProgress] = useState({inProgress: [], completed: [], notStarted: modules, current: modules[0]});
+    const [progress, setProgress] = useState({inProgress: [], completed: [], notStarted: modules.map(x => x.name), current: modules[0].name});
     const [currentService, setCurrentService] = useState(services?.[0]);
     const [iframeModule, setIframeModule] = useState(modules[0]);
-    const currIndex = modules.findIndex(m => m === progress.current);
+    const currIndex = modules.findIndex(m => m.name === progress.current);
 
     function onPageChange() {
         if (ref.current) {
@@ -50,8 +50,11 @@ export default function() {
             } else {
                 key = `${page[page.length - 2]}/${page[page.length - 1].split(".")[0]}`
             }
-            
-            setProgress({completed: [], current: key, inProgress: [], notStarted: [] });
+            const m = modules.find(m => m.name === key);
+            if (m.validation_script) {
+                // TODO: hit api to execute validation
+            }
+            setProgress({...progress, current: key });
         }
     }
 
@@ -66,7 +69,6 @@ export default function() {
             alert('Lab Completed')
         }
     }
-
 
     const initialFile = `./${antoraDir}/${s_name}/${version}/${iframeModule}.html`
 
