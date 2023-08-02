@@ -1,5 +1,6 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import ProgressBar from './progress-bar';
+import RemainingTime from './remaining-time';
 import yaml from 'js-yaml';
 import fetch from 'unfetch';
 import useSWR from "swr";
@@ -28,6 +29,7 @@ const createUrlsFromVars = (vars: service): service  => {
 
 export default function() {
     const ref = useRef();
+    const [positionY, setPositionY] = useState(0);
     const {data, error} = useSWR('./lab-config.yml', (url) => fetch(url).then(r => r.text()), { suspense: true });
     const config = yaml.load(data) as {showroom_version: string, showroom_modules: {name: string, validation_script?: string}[], showroom_services: service[], showroom_name: string, antora_dir?: string};
     const modules = config.showroom_modules;
@@ -37,8 +39,38 @@ export default function() {
     const services = config.showroom_services.map(s => createUrlsFromVars(s));
     const [progress, setProgress] = useState({inProgress: [], completed: [], notStarted: modules.map(x => x.name), current: modules[0].name});
     const [currentService, setCurrentService] = useState(services?.[0]);
-    const [iframeModule, setIframeModule] = useState(modules[0]);
+    const [iframeModule, setIframeModule] = useState(modules[0].name);
     const currIndex = modules.findIndex(m => m.name === progress.current);
+    const initialFile = `./${antoraDir}/${s_name}/${version}/${iframeModule}.html`
+    useEffect(() => {
+        function calculatePositionY() {
+            if (ref.current) {
+                const iframe = ref.current as HTMLIFrameElement;   
+                const elems = iframe.contentWindow.document.getElementsByClassName("main");
+                if (elems.length > 0) {
+                    const height = elems[0].scrollHeight;
+                    if (height !== positionY) setPositionY(height);
+                }
+            }
+        }
+        calculatePositionY();
+    }, [ref.current, initialFile]);
+    useEffect(() => {
+        function calculatePositionY() {
+            if (ref.current) {
+                const iframe = ref.current as HTMLIFrameElement;   
+                const elems = iframe.contentWindow.document.getElementsByClassName("main");
+                if (elems.length > 0) {
+                    const height = elems[0].scrollHeight;
+                    if (height !== positionY) setPositionY(height);
+                }
+            }
+        }
+        const interval = setInterval(calculatePositionY, 500);
+        return () => {
+            clearInterval(interval);
+        }
+    }, [ref.current]);
 
     function onPageChange() {
         if (ref.current) {
@@ -64,13 +96,13 @@ export default function() {
 
     function handleNext() {
         if (currIndex+1 < modules.length) {
-            setIframeModule(modules[currIndex+1]);
+            setIframeModule(modules[currIndex+1].name);
         } else {
             alert('Lab Completed')
         }
     }
 
-    const initialFile = `./${antoraDir}/${s_name}/${version}/${iframeModule}.html`
+    
 
     if (error) {
         return <div>Configuration file not defined</div>
@@ -78,10 +110,15 @@ export default function() {
 
     return <div className="app-wrapper">
                 <div className="split left">
-                    <iframe ref={ref}  src={initialFile} onLoad={onPageChange} width="100%" style={{flexGrow: 1}}></iframe>
+                    <div className="app__toolbar">
+                        <div className="app__toolbar--inner">
+                            <ProgressBar modules={modules} progress={progress} />
+                            <RemainingTime expirationTime={Date.now() + 3.6e+6} />
+                        </div>
+                    </div>
+                    <iframe ref={ref}  src={initialFile} onLoad={onPageChange} width="100%" className="app__instructions" height={positionY} style={{height: `${positionY}px`}}></iframe>
                     <div className="app-iframe__inner">
                         <Button onClick={handleNext}>{currIndex+1 < modules.length ? 'Next':'End'}</Button>
-                        <ProgressBar modules={modules} progress={progress} />
                     </div>
                 </div>
                 <div className="split right">
