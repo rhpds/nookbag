@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   flex-grow: 1;
-  padding: 0;
+  padding: 6px 0;
   margin: 0 14px;
   width: 100%;
   gap: 2px;
@@ -21,10 +21,11 @@
 .progress-bar__item {
   height: 2px;
   width: 100%;
+  background-color: lightgrey;
+}
+.progress-bar__item.completed {
+  opacity: 0.5;
 }
 .progress-bar__item.is-current {
   background-color: #ee0000;
-}
-.progress-bar__item.not-started {
-  background-color: lightgrey;
 }

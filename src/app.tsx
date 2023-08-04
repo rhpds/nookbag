@@ -1,14 +1,12 @@
-import React, { useState, useRef, useEffect } from "react";
-import ProgressBar from './progress-bar';
-import RemainingTime from './remaining-time';
+import React, { useState, useRef } from "react";
 import yaml from 'js-yaml';
 import fetch from 'unfetch';
 import useSWR from "swr";
 import { Button } from '@patternfly/react-core';
+import ProgressHeader from './progress-header';
 import './app.css'
 
 type service = {name: string, url?: string, port?: string, secondary_port?: string, path?: string, secondary_path?: string, secondary_url?: string};
-
 
 const protocol = window.location.protocol;
 const hostname = window.location.hostname;
@@ -29,7 +27,7 @@ const createUrlsFromVars = (vars: service): service  => {
 
 export default function() {
     const ref = useRef();
-    const [positionY, setPositionY] = useState(0);
+    const instructionsPanelRef = useRef();
     const {data, error} = useSWR('./lab-config.yml', (url) => fetch(url).then(r => r.text()), { suspense: true });
     const config = yaml.load(data) as {showroom_version: string, showroom_modules: {name: string, validation_script?: string}[], showroom_services: service[], showroom_name: string, antora_dir?: string};
     const modules = config.showroom_modules;
@@ -42,35 +40,6 @@ export default function() {
     const [iframeModule, setIframeModule] = useState(modules[0].name);
     const currIndex = modules.findIndex(m => m.name === progress.current);
     const initialFile = `./${antoraDir}/${s_name}/${version}/${iframeModule}.html`
-    useEffect(() => {
-        function calculatePositionY() {
-            if (ref.current) {
-                const iframe = ref.current as HTMLIFrameElement;   
-                const elems = iframe.contentWindow.document.getElementsByClassName("main");
-                if (elems.length > 0) {
-                    const height = elems[0].scrollHeight;
-                    if (height !== positionY) setPositionY(height);
-                }
-            }
-        }
-        calculatePositionY();
-    }, [ref.current, initialFile]);
-    useEffect(() => {
-        function calculatePositionY() {
-            if (ref.current) {
-                const iframe = ref.current as HTMLIFrameElement;   
-                const elems = iframe.contentWindow.document.getElementsByClassName("main");
-                if (elems.length > 0) {
-                    const height = elems[0].scrollHeight;
-                    if (height !== positionY) setPositionY(height);
-                }
-            }
-        }
-        const interval = setInterval(calculatePositionY, 500);
-        return () => {
-            clearInterval(interval);
-        }
-    }, [ref.current]);
 
     function onPageChange() {
         if (ref.current) {
@@ -82,11 +51,24 @@ export default function() {
             } else {
                 key = `${page[page.length - 2]}/${page[page.length - 1].split(".")[0]}`
             }
-           /* const m = modules.find(m => m.name === key);
-            if (m.validation_script) {
+            const _progress = {...progress};
+            let pivotPassed = false;
+            modules.forEach(m => {
+                if (m.name === key) {
+                    pivotPassed = true;
+                } else if (pivotPassed) {
+                    _progress.notStarted.push(m.name)
+                } else {
+                    _progress.completed.push(m.name)
+                }
+
+            })
+            _progress.inProgress = [key]
+            _progress.current = key
+            /*if (m.validation_script) {
                 // TODO: hit api to execute validation
             }*/
-            setProgress({...progress, current: key });
+            setProgress(_progress);
         }
     }
 
@@ -97,8 +79,12 @@ export default function() {
     function handleNext() {
         if (currIndex+1 < modules.length) {
             setIframeModule(modules[currIndex+1].name);
+            if (instructionsPanelRef.current) {
+                const instructionsPanel = instructionsPanelRef.current as HTMLDivElement;
+                instructionsPanel.scrollTo(0, 0);
+            }
         } else {
-            alert('Lab Completed')
+            alert('Lab Completed');
         }
     }
 
@@ -109,14 +95,11 @@ export default function() {
     }
 
     return <div className="app-wrapper">
-                <div className="split left">
+                <div className="split left" ref={instructionsPanelRef}>
                     <div className="app__toolbar">
-                        <div className="app__toolbar--inner">
-                            <ProgressBar modules={modules} progress={progress} />
-                            <RemainingTime expirationTime={Date.now() + 3.6e+6} />
-                        </div>
+                        <ProgressHeader className="app__toolbar--inner" modules={modules} progress={progress} expirationTime={Date.now() + 3.6e+6} setIframeModule={setIframeModule} />
                     </div>
-                    <iframe ref={ref}  src={initialFile} onLoad={onPageChange} width="100%" className="app__instructions" height={positionY} style={{height: `${positionY}px`}}></iframe>
+                    <iframe ref={ref}  src={initialFile} onLoad={onPageChange} width="100%" className="app__instructions" height="100%"></iframe>
                     <div className="app-iframe__inner">
                         <Button onClick={handleNext}>{currIndex+1 < modules.length ? 'Next':'End'}</Button>
                     </div>
