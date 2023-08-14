@@ -3,6 +3,7 @@ import yaml from 'js-yaml';
 import fetch from 'unfetch';
 import useSWR from "swr";
 import { Button } from '@patternfly/react-core';
+import Split from 'react-split';
 import ProgressHeader from './progress-header';
 import './app.css'
 
@@ -95,32 +96,40 @@ export default function() {
     }
 
     return <div className="app-wrapper">
-                <div className="split left" ref={instructionsPanelRef}>
-                    <div className="app__toolbar">
-                        <ProgressHeader className="app__toolbar--inner" modules={modules} progress={progress} expirationTime={Date.now() + 3.6e+6} setIframeModule={setIframeModule} />
+                <Split
+                    sizes={[25, 75]}
+                    minSize={100}
+                    gutterSize={2}
+                    direction="horizontal"
+                    cursor="col-resize"
+                    style={{display: 'flex', flexDirection: 'row'}}>
+                    <div className="split left" ref={instructionsPanelRef}>
+                        <div className="app__toolbar">
+                            <ProgressHeader className="app__toolbar--inner" modules={modules} progress={progress} expirationTime={Date.now() + 3.6e+6} setIframeModule={setIframeModule} />
+                        </div>
+                        <iframe ref={ref}  src={initialFile} onLoad={onPageChange} width="100%" className="app__instructions" height="100%"></iframe>
+                        <div className="app-iframe__inner">
+                            <Button onClick={handleNext}>{currIndex+1 < modules.length ? 'Next':'End'}</Button>
+                        </div>
                     </div>
-                    <iframe ref={ref}  src={initialFile} onLoad={onPageChange} width="100%" className="app__instructions" height="100%"></iframe>
-                    <div className="app-iframe__inner">
-                        <Button onClick={handleNext}>{currIndex+1 < modules.length ? 'Next':'End'}</Button>
+                    <div className="split right">
+                        <div className="tab">
+                            {services.map(s => <Button variant="plain" isActive={s.name === currentService.name} key={s.name} className="tablinks" onClick={() => handleTabClick(s)}>{s.name}</Button>)}
+                        </div>
+                        <div className="tabcontent">
+                            {currentService.secondary_url ?
+                            <>
+                                <div className="split top">
+                                    <iframe src={currentService.url} width="100%"></iframe>
+                                </div>
+                                <div className="split bottom">
+                                    <iframe src={currentService.secondary_url} width="100%"></iframe>
+                                </div>
+                            </>
+                            :
+                            <iframe src={currentService.url} height="100%" width="100%"></iframe>}
+                        </div>
                     </div>
-                </div>
-                <div className="split right">
-                    <div className="tab">
-                        {services.map(s => <Button variant="plain" isActive={s.name === currentService.name} key={s.name} className="tablinks" onClick={() => handleTabClick(s)}>{s.name}</Button>)}
-                    </div>
-                    <div className="tabcontent">
-                        {currentService.secondary_url ?
-                        <>
-                            <div className="split top">
-                                <iframe src={currentService.url} width="100%"></iframe>
-                            </div>
-                            <div className="split bottom">
-                                <iframe src={currentService.secondary_url} width="100%"></iframe>
-                            </div>
-                        </>
-                        :
-                        <iframe src={currentService.url} height="100%" width="100%"></iframe>}
-                    </div>
-                </div>
+                </Split>
             </div>
 }

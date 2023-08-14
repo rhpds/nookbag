@@ -17,29 +17,16 @@
     width: 100%;
     min-height: 100%;
     padding: 0px;
-    display: flex;
-    justify-items: center;
-    align-items: center;
     border: 0;
     border-top: 1px solid #6A6E73;
-    align-items: stretch;
-    background: #151515;
-    color: #fff;
-  }
-  
-  .split {
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .left {
-    min-height: 100%;
-    width: 25%;
-    min-width: 360px;
-    border-right: 1px solid #6A6E73;
+    background: #fff;
+    color: #151515;
   }
 
   .split.left {
+    min-height: 100%;
+    min-width: 360px;
+    border-right: 1px solid #6A6E73;
     display: flex;
     flex-direction: column;
     height: 100vh;
@@ -57,30 +44,13 @@
   .split.bottom {
     border-top: 1px solid #6A6E73;
   }
-  
-  .gutter {
-    /* cursor: e-resize; */
-    /* background: grey; */
-    height: 98%;
-    background-color: #eee;
-    background-repeat: no-repeat;
-    background-position: 50%;
-  }
-  
-  .gutter.gutter-horizontal {
-    background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAeCAYAAADkftS9AAAAIklEQVQoU2M4c+bMfxAGAgYYmwGrIIiDjrELjpo5aiZeMwF+yNnOs5KSvgAAAABJRU5ErkJggg==');
-    cursor: col-resize;
-  }
-  .gutter.gutter-vertical {
-    background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAFAQMAAABo7865AAAABlBMVEVHcEzMzMzyAv2sAAAAAXRSTlMAQObYZgAAABBJREFUeF5jOAMEEAIEEFwAn3kMwcB6I2AAAAAASUVORK5CYII=');
-    cursor: row-resize;
-  }
+
 /* Style the tab */
 
 .tab {
     border-bottom: 1px solid #6A6E73;
     border-radius: 0;
-    background-color: #151515;
+    background-color: #fff;
     display: flex;
     flex-direction: row;
     height: 52px;
@@ -91,7 +61,7 @@
   .tab .pf-c-button {
     padding: 14px 16px;
     transition: 0.3s;
-    color: #bbb;
+    color: #333;
     border-right: 1px solid #6A6E73;
     border-radius: 0;
   }
@@ -99,13 +69,13 @@
   /* Change background color of buttons on hover */
   
   .tab .pf-c-button:hover {
-    color: #fff;
+    color: #111;
   }
   
   /* Create an active/current tablink class */
   
   .tab .pf-c-button.pf-m-active {
-    color: #fff;
+    color: #111;
     text-decoration: underline;
   }
   
@@ -143,7 +113,7 @@
   }
   .app__toolbar--inner {
     border: 1px solid rgba(255, 255, 255, 0.6);
-    color: #fff !important;
+    color: #151515 !important;
     text-align: left;
     border-radius: 4px;
     margin: 0 0 !important;
@@ -153,3 +123,37 @@
     padding: 0 0 !important;
   }
   
+
+
+/** SPLIT **/
+.gutter {
+  background-color: #eee;
+  background-repeat: no-repeat;
+  background-position: 50%;
+}
+
+.gutter.gutter-horizontal {
+    cursor: col-resize;
+    height: 100%;
+    min-height: 100vh;
+}
+
+.gutter.gutter-vertical {
+    cursor: row-resize;
+}
+.gutter.gutter-vertical {
+  background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAFAQMAAABo7865AAAABlBMVEVHcEzMzMzyAv2sAAAAAXRSTlMAQObYZgAAABBJREFUeF5jOAMEEAIEEFwAn3kMwcB6I2AAAAAASUVORK5CYII=');
+}
+
+.gutter.gutter-horizontal {
+  background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAeCAYAAADkftS9AAAAIklEQVQoU2M4c+bMfxAGAgYYmwGrIIiDjrELjpo5aiZeMwF+yNnOs5KSvgAAAABJRU5ErkJggg==');
+}
+.split {
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+}
+.split {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
