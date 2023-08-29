@@ -26,7 +26,6 @@
   .split.left {
     min-height: 100%;
     min-width: 360px;
-    border-right: 1px solid #6A6E73;
     display: flex;
     flex-direction: column;
     height: 100vh;
@@ -136,6 +135,7 @@
     cursor: col-resize;
     height: 100%;
     min-height: 100vh;
+    background-color: #6a6e73
 }
 
 .gutter.gutter-vertical {

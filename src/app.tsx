@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import yaml from 'js-yaml';
 import fetch from 'unfetch';
 import useSWR from "swr";
@@ -26,9 +26,12 @@ const createUrlsFromVars = (vars: service): service  => {
     };
 }
 
+type Session = {sessionUuid: string, catalogItemName: string, start: string, stop?: string, state: string, labUserInterfaceUrl: string};
+
 export default function() {
     const ref = useRef();
     const instructionsPanelRef = useRef();
+    const [session, setSession] = useState<Session>(null);
     const {data, error} = useSWR('./lab-config.yml', (url) => fetch(url).then(r => r.text()), { suspense: true });
     const config = yaml.load(data) as {showroom_version: string, showroom_modules: {name: string, validation_script?: string}[], showroom_services: service[], showroom_name: string, antora_dir?: string};
     const modules = config.showroom_modules;
@@ -41,6 +44,18 @@ export default function() {
     const [iframeModule, setIframeModule] = useState(modules[0].name);
     const currIndex = modules.findIndex(m => m.name === progress.current);
     const initialFile = `./${antoraDir}/${s_name}/${version}/${iframeModule}.html`
+
+    useEffect(() => {
+        const searchParams = new URLSearchParams(document.location.search);
+        const s = searchParams.get('s');
+        console.log('search param s:' + s)
+        if (s) {
+            const sessionIntend: Session = JSON.parse(s);
+            if (sessionIntend?.sessionUuid) {
+                setSession(sessionIntend)
+            }
+        }
+    }, [setSession]);
 
     function onPageChange() {
         if (ref.current) {
@@ -89,23 +104,23 @@ export default function() {
         }
     }
 
-    
-
     if (error) {
         return <div>Configuration file not defined</div>
     }
+
+    console.log("session: "+ JSON.stringify(session))
 
     return <div className="app-wrapper">
                 <Split
                     sizes={[25, 75]}
                     minSize={100}
-                    gutterSize={2}
+                    gutterSize={1}
                     direction="horizontal"
                     cursor="col-resize"
                     style={{display: 'flex', flexDirection: 'row'}}>
                     <div className="split left" ref={instructionsPanelRef}>
                         <div className="app__toolbar">
-                            <ProgressHeader className="app__toolbar--inner" modules={modules} progress={progress} expirationTime={Date.now() + 3.6e+6} setIframeModule={setIframeModule} />
+                            <ProgressHeader sessionUuid={session?.sessionUuid} className="app__toolbar--inner" modules={modules} progress={progress} expirationTime={Date.now() + 3.6e+6} setIframeModule={setIframeModule} />
                         </div>
                         <iframe ref={ref}  src={initialFile} onLoad={onPageChange} width="100%" className="app__instructions" height="100%"></iframe>
                         <div className="app-iframe__inner">

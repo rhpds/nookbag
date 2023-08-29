@@ -3,13 +3,15 @@ import React, { Dispatch, SetStateAction, useState } from "react";
 import ProgressBar from './progress-bar';
 import RemainingTime from './remaining-time';
 import { CheckIcon } from "@patternfly/react-icons";
+import { apiPaths, publicFetcher } from "./api";
 
 import './progress-header.css';
 
-export default function({modules, progress, expirationTime, className, setIframeModule}: {modules: {name: string, label?: string; validation_script?: string}[], progress: {current: string, inProgress: string[], notStarted: string[], completed: string[]}, expirationTime: number, className?: string, setIframeModule: Dispatch<SetStateAction<string>>}) {
+export default function({sessionUuid, modules, progress, expirationTime, className, setIframeModule}: {sessionUuid: string, modules: {name: string, label?: string; validation_script?: string}[], progress: {current: string, inProgress: string[], notStarted: string[], completed: string[]}, expirationTime: number, className?: string, setIframeModule: Dispatch<SetStateAction<string>>}) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isModalRestartOpen, setIsModalRestartOpen] = useState(false);
-
+    const [isRestartDisabled, setIsRestartDisabled] = useState(false);
+    console.log(sessionUuid);
     function handleModalToggle() {
         setIsModalOpen(!isModalOpen);
     }
@@ -19,6 +21,13 @@ export default function({modules, progress, expirationTime, className, setIframe
     function handleGoTo(m: string) {
         setIframeModule(m);
         handleModalToggle();
+    }
+    function handleRestart() {
+        setIsRestartDisabled(true);
+        publicFetcher(apiPaths.PROVISION({name: sessionUuid}), {method: 'DELETE'}).then(_ => {
+            console.log('Posting message: RESTART')
+            window.parent.postMessage("RESTART", "*");
+        });
     }
 
     return <>
@@ -35,9 +44,9 @@ export default function({modules, progress, expirationTime, className, setIframe
                 <Button key="restart" variant="primary" onClick={handleModalToggle}>
                     Close
                 </Button>,
-                <Button key="restart" variant="secondary" onClick={handleModalRestartToggle}>
+                sessionUuid ? <Button key="restart" variant="secondary" onClick={handleModalRestartToggle}>
                     Restart
-                </Button>
+                </Button> : null
             ]}
         >
             <div className="progress-modal">
@@ -47,7 +56,7 @@ export default function({modules, progress, expirationTime, className, setIframe
             </div>
         </Modal>
         <Modal variant={ModalVariant.small} title="Do you want to restart?" isOpen={isModalRestartOpen} onClose={handleModalRestartToggle} actions={[
-            <Button key="restart" variant="primary" onClick={null}>
+            <Button key="restart" variant="primary" onClick={handleRestart} isDisabled={isRestartDisabled}>
                 Restart
             </Button>,
             <Button key="cancel" variant="secondary" onClick={handleModalRestartToggle}>
