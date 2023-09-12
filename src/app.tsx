@@ -5,10 +5,11 @@ import useSWR from "swr";
 import { Button, Form, FormGroup, Modal, ModalVariant, TextArea } from '@patternfly/react-core';
 import Split from 'react-split';
 import ProgressHeader from './progress-header';
-import './app.css'
 import StarRating from "./star-rating";
 import { CheckCircleIcon, WarningTriangleIcon } from "@patternfly/react-icons";
 import ModalRestart from "./modal-restart";
+
+import './app.css';
 
 type tab = {name: string, url?: string, port?: string, secondary_port?: string, path?: string, secondary_path?: string, secondary_url?: string};
 
@@ -29,7 +30,7 @@ const createUrlsFromVars = (vars: tab): tab  => {
     };
 }
 
-type Session = {sessionUuid: string, catalogItemName: string, start: string, stop?: string, state: string, end: string, labUserInterfaceUrl: string, completed?: boolean};
+type Session = {sessionUuid: string, catalogItemName: string, start: string, stop?: string, state: string, lifespanEnd: string, labUserInterfaceUrl: string, completed?: boolean};
 
 export default function() {
     const ref = useRef();
@@ -49,7 +50,7 @@ export default function() {
         submitDisabled: boolean;
       }>({ submitDisabled: false });
     const {data, error} = useSWR('./nookbag.yml', (url) => fetch(url).then(r => r.text()), { suspense: true });
-    const config = yaml.load(data) as {antora: { modules: {name: string, validation_script?: string}[], name: string, dir?: string, version: string }, tabs: service[]};
+    const config = yaml.load(data) as {antora: { modules: {name: string, validation_script?: string}[], name: string, dir?: string, version: string }, tabs: tab[]};
     const modules = config.antora.modules;
     const antoraDir = config.antora.dir || 'antora';
     const version = config.antora.version;
@@ -61,7 +62,7 @@ export default function() {
     const currIndex = modules.findIndex(m => m.name === progress.current);
     const initialFile = `./${antoraDir}/${s_name}/${version}/${iframeModule}.html`;
     const isCompleted = session?.completed ?? false;
-    const isExpired = session?.end ? new Date(session.end).getTime() > new Date().getTime() : false;
+    const isExpired = session?.lifespanEnd ? new Date(session.lifespanEnd).getTime() <= new Date().getTime() : false;
 
     function onPageChange() {
         if (ref.current) {

@@ -1,8 +1,8 @@
 import { Button, Modal, ModalVariant } from "@patternfly/react-core";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { apiPaths, publicFetcher } from "./api";
 
-export default function({sessionUuid, isModalRestartOpen, setIsModalRestartOpen}: {sessionUuid: string, isModalRestartOpen: boolean, setIsModalRestartOpen: React.Dispatch<React.SetStateAction<boolean>>}) {
+export default function({sessionUuid, isModalRestartOpen, setIsModalRestartOpen, showWarning = true}: {sessionUuid: string, isModalRestartOpen: boolean, setIsModalRestartOpen: React.Dispatch<React.SetStateAction<boolean>>, showWarning: boolean}) {
     const [isRestartDisabled, setIsRestartDisabled] = useState(false);
 
     function handleModalRestartToggle() {
@@ -10,14 +10,29 @@ export default function({sessionUuid, isModalRestartOpen, setIsModalRestartOpen}
     }
     function handleRestart() {
         setIsRestartDisabled(true);
-        publicFetcher(apiPaths.PROVISION({name: sessionUuid}), {method: 'DELETE'}).then(_ => {
-            console.log('Posting message: RESTART')
+        try {
+            publicFetcher(apiPaths.PROVISION({name: sessionUuid}), {method: 'DELETE'}).then(_ => {
+                console.log('Posting message: RESTART');
+                window.parent.postMessage("RESTART", "*");
+            });
+        } catch (_) {
+            console.log('Posting message: RESTART');
             window.parent.postMessage("RESTART", "*");
-        });
+        }
     }
+
+    useEffect(() => {
+        if (!showWarning) {
+            handleRestart();
+        }
+    }, [showWarning]);
 
     if(!sessionUuid) {
         return <p>Error</p>
+    }
+
+    if (!showWarning) {
+        return null;
     }
 
     return <>
