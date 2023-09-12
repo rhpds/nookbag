@@ -19,6 +19,6 @@ COPY --from=builder /antora/dist /var/www/html/antora
 
 *The labs will mount the html output inside the `/var/www/html/antora` folder.
 
-*The config file (defined in agnosticV) needs to be mounted in the path: `/var/www/html/lab-config.yml`.
+*The config file (defined in agnosticV) needs to be mounted in the path: `/var/www/html/nookbag.yml`.
 
 The theme used is [nookbag-bundle](https://github.com/rhpds/nookbag-bundle)

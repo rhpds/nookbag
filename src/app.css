@@ -157,3 +157,24 @@
   overflow-y: auto;
   overflow-x: hidden;
 }
+
+.app-wrapper__inner {
+  margin: 62px 82px;
+}
+.app-wrapper__title {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  position: relative;
+}
+.app-wrapper__title-text {
+  position: absolute;
+  margin-left: 32px;
+}
+.app-wrapper__content {
+  display: block;
+  margin-left: 32px;
+}
+.app-wrapper__restart-btn {
+  margin-top: 32px;
+}

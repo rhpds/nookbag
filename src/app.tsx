@@ -2,10 +2,13 @@ import React, { useState, useRef, useEffect } from "react";
 import yaml from 'js-yaml';
 import fetch from 'unfetch';
 import useSWR from "swr";
-import { Button } from '@patternfly/react-core';
+import { Button, Form, FormGroup, Modal, ModalVariant, TextArea } from '@patternfly/react-core';
 import Split from 'react-split';
 import ProgressHeader from './progress-header';
 import './app.css'
+import StarRating from "./star-rating";
+import { CheckCircleIcon, WarningTriangleIcon } from "@patternfly/react-icons";
+import ModalRestart from "./modal-restart";
 
 type tab = {name: string, url?: string, port?: string, secondary_port?: string, path?: string, secondary_path?: string, secondary_url?: string};
 
@@ -26,12 +29,25 @@ const createUrlsFromVars = (vars: tab): tab  => {
     };
 }
 
-type Session = {sessionUuid: string, catalogItemName: string, start: string, stop?: string, state: string, labUserInterfaceUrl: string};
+type Session = {sessionUuid: string, catalogItemName: string, start: string, stop?: string, state: string, end: string, labUserInterfaceUrl: string, completed?: boolean};
 
 export default function() {
     const ref = useRef();
     const instructionsPanelRef = useRef();
-    const [session, setSession] = useState<Session>(null);
+    const searchParams = new URLSearchParams(document.location.search);
+    const s = searchParams.get('s');
+    const sessionIntend: Session = s ? JSON.parse(s) : null;
+    const [session, setSession] = useState<Session>(sessionIntend);
+    const [isModalRestartOpen, setIsModalRestartOpen] = useState(false);
+    const [isModalRatingOpen, setIsModalRatingOpen] = useState(false);
+    const [modalState, setModalState] = useState<{
+        resourceClaimName?: string;
+        rating?: {
+          rate: number;
+          comment: string;
+        };
+        submitDisabled: boolean;
+      }>({ submitDisabled: false });
     const {data, error} = useSWR('./nookbag.yml', (url) => fetch(url).then(r => r.text()), { suspense: true });
     const config = yaml.load(data) as {antora: { modules: {name: string, validation_script?: string}[], name: string, dir?: string, version: string }, tabs: service[]};
     const modules = config.antora.modules;
@@ -43,19 +59,9 @@ export default function() {
     const [currentTab, setCurrentTab] = useState(tabs?.[0]);
     const [iframeModule, setIframeModule] = useState(modules[0].name);
     const currIndex = modules.findIndex(m => m.name === progress.current);
-    const initialFile = `./${antoraDir}/${s_name}/${version}/${iframeModule}.html`
-
-    useEffect(() => {
-        const searchParams = new URLSearchParams(document.location.search);
-        const s = searchParams.get('s');
-        console.log('search param s:' + s)
-        if (s) {
-            const sessionIntend: Session = JSON.parse(s);
-            if (sessionIntend?.sessionUuid) {
-                setSession(sessionIntend)
-            }
-        }
-    }, [setSession]);
+    const initialFile = `./${antoraDir}/${s_name}/${version}/${iframeModule}.html`;
+    const isCompleted = session?.completed ?? false;
+    const isExpired = session?.end ? new Date(session.end).getTime() > new Date().getTime() : false;
 
     function onPageChange() {
         if (ref.current) {
@@ -100,17 +106,39 @@ export default function() {
                 instructionsPanel.scrollTo(0, 0);
             }
         } else {
-            alert('Lab Completed');
+            setSession({...session, completed: true});
+            setIsModalRatingOpen(true);
         }
+    }
+
+    function handleSubmitRating() {
+        setIsModalRatingOpen(false);
     }
 
     if (error) {
         return <div>Configuration file not defined</div>
     }
 
-    console.log("session: "+ JSON.stringify(session))
-
     return <div className="app-wrapper">
+            {isCompleted ? <div className="app-wrapper__inner app__lab-completed">
+                    <div className="app-wrapper__title">
+                        <CheckCircleIcon />
+                        <p className="app-wrapper__title-text">Lab completed.</p>
+                    </div>
+                    <div className="app-wrapper__content">
+                        <p>If you want to try again, please restart the Lab.</p>
+                        <Button className="app-wrapper__restart-btn" onClick={() => setIsModalRestartOpen(true)}>Restart</Button>
+                    </div>
+                </div> : isExpired ? <div className="app-wrapper__inner app__lab-expired">
+                        <div className="app-wrapper__title">
+                            <WarningTriangleIcon />
+                            <p className="app-wrapper__title-text">Your session expired.</p>
+                        </div>
+                        <div className="app-wrapper__content">
+                            <p>If you want to try again, please restart the Lab.</p>
+                            <Button className="app-wrapper__restart-btn" onClick={() => setIsModalRestartOpen(true)}>Restart</Button>
+                        </div>
+                </div> :
                 <Split
                     sizes={[25, 75]}
                     minSize={100}
@@ -146,5 +174,43 @@ export default function() {
                         </div>
                     </div>
                 </Split>
-            </div>
+            }
+            <Modal variant={ModalVariant.small} title="Lab Completed" isOpen={isModalRatingOpen} onClose={() => setIsModalRatingOpen(false)} actions={[
+                <Button key="submit" variant="primary" onClick={handleSubmitRating} isDisabled={modalState.submitDisabled}>
+                    Submit
+                </Button>
+            ]}>
+                <Form>
+                    <FormGroup
+                        fieldId="rating"
+                        label="How would you rate the quality of the supporting materials for this asset?"
+                    >
+                        <StarRating count={5} rating={modalState.rating?.rate} onRating={(rate) => setModalState({...modalState, rating: {...modalState.rating, rate}})} />
+                    </FormGroup>
+                    <FormGroup
+                        fieldId="comment"
+                        label={<span>Additional information</span>}
+                        isRequired={modalState.submitDisabled}
+                    >
+                        <TextArea
+                            id="comment"
+                            onChange={(comment) => {
+                                const rating = { ...modalState.rating, comment };
+                                setModalState({
+                                ...modalState,
+                                rating,
+                                submitDisabled:
+                                    Number.isFinite(rating.rate) && rating.rate < 3 ? !comment || comment.trim() === '' : false,
+                                });
+                            }}
+                            value={modalState.rating?.comment || ''}
+                            placeholder="Add comment"
+                            aria-label="Add comment"
+                            isRequired={modalState.submitDisabled}
+                        />
+                    </FormGroup>
+                </Form>
+            </Modal>
+            <ModalRestart isModalRestartOpen={isModalRestartOpen} setIsModalRestartOpen={setIsModalRestartOpen} sessionUuid={session?.sessionUuid} />
+        </div>
 }

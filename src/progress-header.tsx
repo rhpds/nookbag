@@ -3,15 +3,15 @@ import React, { Dispatch, SetStateAction, useState } from "react";
 import ProgressBar from './progress-bar';
 import RemainingTime from './remaining-time';
 import { CheckIcon } from "@patternfly/react-icons";
-import { apiPaths, publicFetcher } from "./api";
+import ModalRestart from "./modal-restart";
 
 import './progress-header.css';
+
 
 export default function({sessionUuid, modules, progress, expirationTime, className, setIframeModule}: {sessionUuid: string, modules: {name: string, label?: string; validation_script?: string}[], progress: {current: string, inProgress: string[], notStarted: string[], completed: string[]}, expirationTime: number, className?: string, setIframeModule: Dispatch<SetStateAction<string>>}) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isModalRestartOpen, setIsModalRestartOpen] = useState(false);
-    const [isRestartDisabled, setIsRestartDisabled] = useState(false);
-    console.log(sessionUuid);
+
     function handleModalToggle() {
         setIsModalOpen(!isModalOpen);
     }
@@ -21,13 +21,6 @@ export default function({sessionUuid, modules, progress, expirationTime, classNa
     function handleGoTo(m: string) {
         setIframeModule(m);
         handleModalToggle();
-    }
-    function handleRestart() {
-        setIsRestartDisabled(true);
-        publicFetcher(apiPaths.PROVISION({name: sessionUuid}), {method: 'DELETE'}).then(_ => {
-            console.log('Posting message: RESTART')
-            window.parent.postMessage("RESTART", "*");
-        });
     }
 
     return <>
@@ -55,15 +48,6 @@ export default function({sessionUuid, modules, progress, expirationTime, classNa
                 </li>)}</ul>
             </div>
         </Modal>
-        <Modal variant={ModalVariant.small} title="Do you want to restart?" isOpen={isModalRestartOpen} onClose={handleModalRestartToggle} actions={[
-            <Button key="restart" variant="primary" onClick={handleRestart} isDisabled={isRestartDisabled}>
-                Restart
-            </Button>,
-            <Button key="cancel" variant="secondary" onClick={handleModalRestartToggle}>
-                Cancel
-            </Button>
-        ]}>
-            <p>This will drop the current progress. You can’t undo this. You will have to start from the beginning.</p>
-        </Modal>
+        <ModalRestart isModalRestartOpen={isModalRestartOpen} setIsModalRestartOpen={setIsModalRestartOpen} sessionUuid={sessionUuid} />
     </>
 }
