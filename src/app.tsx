@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import yaml from 'js-yaml';
 import fetch from 'unfetch';
 import useSWR from "swr";
@@ -33,8 +33,6 @@ const createUrlsFromVars = (vars: tab): tab  => {
 type Session = {sessionUuid: string, catalogItemName: string, start: string, stop?: string, state: string, lifespanEnd: string, labUserInterfaceUrl: string, completed?: boolean};
 
 export default function() {
-
-    console.log("session from iframe: " + localStorage.getItem("ZERO_SESSION"));
     const ref = useRef();
     const instructionsPanelRef = useRef();
     const searchParams = new URLSearchParams(document.location.search);

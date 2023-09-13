@@ -26,7 +26,7 @@ export default function({sessionUuid, modules, progress, expirationTime, classNa
     return <>
         <Button className={className || ''} variant="plain" onClick={handleModalToggle}>
             <ProgressBar modules={modules} progress={progress} />
-            <RemainingTime expirationTime={expirationTime} />
+            {!isNaN(expirationTime) ? <RemainingTime expirationTime={expirationTime} /> : null}
         </Button>
         <Modal
             title="Progress"
@@ -48,6 +48,6 @@ export default function({sessionUuid, modules, progress, expirationTime, classNa
                 </li>)}</ul>
             </div>
         </Modal>
-        <ModalRestart isModalRestartOpen={isModalRestartOpen} setIsModalRestartOpen={setIsModalRestartOpen} sessionUuid={sessionUuid} />
+        <ModalRestart showWarning={true} isModalRestartOpen={isModalRestartOpen} setIsModalRestartOpen={setIsModalRestartOpen} sessionUuid={sessionUuid} />
     </>
 }
