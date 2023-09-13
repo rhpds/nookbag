@@ -62,7 +62,7 @@ export default function() {
     const currIndex = modules.findIndex(m => m.name === progress.current);
     const initialFile = `./${antoraDir}/${s_name}/${version}/${iframeModule}.html`;
     const isCompleted = session?.completed ?? false;
-    const isExpired = session?.lifespanEnd ? new Date(session.lifespanEnd).getTime() <= new Date().getTime() : false;
+    const isExpired = session?.lifespanEnd ? new Date(session?.lifespanEnd).getTime() <= new Date().getTime() : false;
 
     function onPageChange() {
         if (ref.current) {
@@ -149,7 +149,7 @@ export default function() {
                     style={{display: 'flex', flexDirection: 'row'}}>
                     <div className="split left" ref={instructionsPanelRef}>
                         <div className="app__toolbar">
-                            <ProgressHeader sessionUuid={session?.sessionUuid} className="app__toolbar--inner" modules={modules} progress={progress} expirationTime={Date.parse(session.lifespanEnd)} setIframeModule={setIframeModule} />
+                            <ProgressHeader sessionUuid={session?.sessionUuid} className="app__toolbar--inner" modules={modules} progress={progress} expirationTime={Date.parse(session?.lifespanEnd)} setIframeModule={setIframeModule} />
                         </div>
                         <iframe ref={ref}  src={initialFile} onLoad={onPageChange} width="100%" className="app__instructions" height="100%"></iframe>
                         <div className="app-iframe__inner">
