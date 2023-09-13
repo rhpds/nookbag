@@ -25,8 +25,8 @@ const createUrlsFromVars = (vars: tab): tab  => {
     }
     return {
         ...vars,
-        url: `${protocol}//${hostname}:${vars.port}${vars.path || ''}`,
-        ...vars.secondary_port ? {secondary_url: `${protocol}//${hostname}:${vars.secondary_port}${vars.secondary_path || ''}`} : {}
+        url: `${protocol}//${hostname}${vars.port ? ":" + vars.port : ''}${vars.path || ''}`,
+        ...vars.secondary_path ? {secondary_url: `${protocol}//${hostname}${vars.secondary_port ? ":" + vars.secondary_port : ''}${vars.secondary_path || ''}`} : {}
     };
 }
 
