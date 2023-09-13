@@ -13,26 +13,18 @@ export default function({sessionUuid, isModalRestartOpen, setIsModalRestartOpen,
         try {
             publicFetcher(apiPaths.PROVISION({name: sessionUuid}), {method: 'DELETE'}).then(_ => {
                 console.log('Posting message: RESTART');
+                setIsRestartDisabled(false);
                 window.parent.postMessage("RESTART", "*");
             });
         } catch (_) {
             console.log('Posting message: RESTART');
+            setIsRestartDisabled(false);
             window.parent.postMessage("RESTART", "*");
         }
     }
 
-    useEffect(() => {
-        if (!showWarning) {
-            handleRestart();
-        }
-    }, [showWarning]);
-
     if(!sessionUuid) {
         return <p>Error</p>
-    }
-
-    if (!showWarning) {
-        return null;
     }
 
     return <>
@@ -44,7 +36,7 @@ export default function({sessionUuid, isModalRestartOpen, setIsModalRestartOpen,
                 Cancel
             </Button>
         ]}>
-            <p>This will drop the current progress. You can’t undo this. You will have to start from the beginning.</p>
+            {showWarning ? <p>This will drop the current progress. You can’t undo this. You will have to start from the beginning.</p>:null}
         </Modal>
     </>
 }

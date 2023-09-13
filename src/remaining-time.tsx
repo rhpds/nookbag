@@ -15,7 +15,8 @@ export default function({expirationTime}:{expirationTime: number}) {
         return () => {
             clearInterval(interval);
         }
-    }, [])
+    }, []);
+    
     return <Tooltip position="bottom" content="Expiration time">
         <div style={{backgroundColor: 'rgb(255 255 255 /  0.2)', borderRadius: '4px', fontSize: '14px', minWidth: '100px', padding: '2px 6px', textAlign: 'center', marginRight: '4px', display: 'flex', alignItems: 'center', gap: '8px'}}>
             <ClockIcon /> {remainingMins} mins.
