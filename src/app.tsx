@@ -60,7 +60,7 @@ export default function() {
     const [currentTab, setCurrentTab] = useState(tabs?.[0]);
     const [iframeModule, setIframeModule] = useState(modules[0].name);
     const currIndex = modules.findIndex(m => m.name === progress.current);
-    const initialFile = `./${antoraDir}/${s_name}/${version}/${iframeModule}.html`;
+    const initialFile = `./${antoraDir}/${s_name ? s_name + "/" : ''}${version ? version + "/": ''}${iframeModule}.html`;
     const isCompleted = session?.completed ?? false;
     const isExpired = session?.lifespanEnd ? new Date(session?.lifespanEnd).getTime() <= new Date().getTime() : false;
 
