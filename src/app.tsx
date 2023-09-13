@@ -69,7 +69,7 @@ export default function() {
             const iframe = ref.current as HTMLIFrameElement;
             const page = iframe.contentWindow.location.pathname.split('/');
             let key = "";
-            if (page[page.length - 2] === version) {
+            if (page[page.length - 2] === version || !version) {
                 key = page[page.length - 1].split(".")[0]
             } else {
                 key = `${page[page.length - 2]}/${page[page.length - 1].split(".")[0]}`
