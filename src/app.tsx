@@ -33,6 +33,8 @@ const createUrlsFromVars = (vars: tab): tab  => {
 type Session = {sessionUuid: string, catalogItemName: string, start: string, stop?: string, state: string, lifespanEnd: string, labUserInterfaceUrl: string, completed?: boolean};
 
 export default function() {
+
+    console.log("session from iframe: " + localStorage.getItem("ZERO_SESSION"));
     const ref = useRef();
     const instructionsPanelRef = useRef();
     const searchParams = new URLSearchParams(document.location.search);
@@ -149,7 +151,7 @@ export default function() {
                     style={{display: 'flex', flexDirection: 'row'}}>
                     <div className="split left" ref={instructionsPanelRef}>
                         <div className="app__toolbar">
-                            <ProgressHeader sessionUuid={session?.sessionUuid} className="app__toolbar--inner" modules={modules} progress={progress} expirationTime={Date.now() + 3.6e+6} setIframeModule={setIframeModule} />
+                            <ProgressHeader sessionUuid={session?.sessionUuid} className="app__toolbar--inner" modules={modules} progress={progress} expirationTime={Date.parse(session.lifespanEnd)} setIframeModule={setIframeModule} />
                         </div>
                         <iframe ref={ref}  src={initialFile} onLoad={onPageChange} width="100%" className="app__instructions" height="100%"></iframe>
                         <div className="app-iframe__inner">
@@ -212,6 +214,6 @@ export default function() {
                     </FormGroup>
                 </Form>
             </Modal>
-            <ModalRestart isModalRestartOpen={isModalRestartOpen} setIsModalRestartOpen={setIsModalRestartOpen} sessionUuid={session?.sessionUuid} />
+            <ModalRestart isModalRestartOpen={isModalRestartOpen} showWarning={false} setIsModalRestartOpen={setIsModalRestartOpen} sessionUuid={session?.sessionUuid} />
         </div>
 }
