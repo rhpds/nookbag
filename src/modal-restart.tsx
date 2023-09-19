@@ -24,7 +24,7 @@ export default function({sessionUuid, isModalRestartOpen, setIsModalRestartOpen,
     }
 
     if(!sessionUuid) {
-        return <p>Error</p>
+        return null;
     }
 
     return <>

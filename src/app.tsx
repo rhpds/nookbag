@@ -49,7 +49,17 @@ export default function() {
         };
         submitDisabled: boolean;
       }>({ submitDisabled: false });
-    const {data, error} = useSWR('./nookbag.yml', (url) => fetch(url).then(r => r.text()), { suspense: true });
+    const {data: dataResponses, error} = useSWR(['zero-config.yaml', 'zero-config.yml', './zero-touch-config.yaml','./zero-touch-config.yml', './nookbag.yml'], (urls) => Promise.all(urls.map(url => fetch(url))).then((responses) => Promise.all(
+            responses
+              .map((response) => {
+                  if (response.status === 200) {
+                    return response.text();
+                  }
+                  return null;
+              })
+          )).catch(null), { suspense: true });
+    const data = dataResponses.find(Boolean);
+    if (!data) throw new Error();
     const config = yaml.load(data) as {antora: { modules: {name: string, validation_script?: string}[], name: string, dir?: string, version: string }, tabs: tab[]};
     const modules = config.antora.modules;
     const antoraDir = config.antora.dir || 'antora';
@@ -141,7 +151,7 @@ export default function() {
                         </div>
                 </div> :
                 <Split
-                    sizes={[25, 75]}
+                    sizes={tabs.length > 0 ? [25, 75] : [100]}
                     minSize={100}
                     gutterSize={1}
                     direction="horizontal"
@@ -156,10 +166,11 @@ export default function() {
                             <Button onClick={handleNext}>{currIndex+1 < modules.length ? 'Next':'End'}</Button>
                         </div>
                     </div>
-                    <div className="split right">
+                    {tabs.length > 0 ? <div className="split right">
+                        {tabs.length > 1 ? 
                         <div className="tab">
                             {tabs.map(s => <Button variant="plain" isActive={s.name === currentTab.name} key={s.name} className="tablinks" onClick={() => handleTabClick(s)}>{s.name}</Button>)}
-                        </div>
+                        </div> : null}
                         <div className="tabcontent">
                             {currentTab.secondary_url ?
                             <>
@@ -173,7 +184,7 @@ export default function() {
                             :
                             <iframe src={currentTab.url} height="100%" width="100%"></iframe>}
                         </div>
-                    </div>
+                    </div> : null}
                 </Split>
             }
             <Modal variant={ModalVariant.small} title="Lab Completed" isOpen={isModalRatingOpen} onClose={() => setIsModalRatingOpen(false)} actions={[
