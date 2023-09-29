@@ -129,6 +129,17 @@
   background-color: #eee;
   background-repeat: no-repeat;
   background-position: 50%;
+  display: flex;
+  align-items: center;
+}
+.gutter:after {
+  display: block;
+  content: " ";
+  width: 17px;
+  position: absolute;
+  height: 35px;
+  margin-left: -9px;
+  background: url('data:image/svg+xml,<svg width="17" height="35" viewBox="0 0 17 35" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class="w-[17px] absolute top-1/2 -translate-y-1/2 -left-1 text-[%2358647a] group-hover:text-[%236b7d9e]"><rect x="0.5" y="0.5" width="16" height="34" rx="7.5" fill="white" stroke="currentColor"></rect><rect x="6" y="8" width="5" height="5" rx="1" fill="currentColor" class="handle_svg__dot"></rect><rect x="6" y="15" width="5" height="5" rx="1" fill="currentColor" class="handle_svg__dot"></rect><rect x="6" y="22" width="5" height="5" rx="1" fill="currentColor" class="handle_svg__dot"></rect></svg>')
 }
 
 .gutter.gutter-horizontal {

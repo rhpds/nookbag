@@ -5,8 +5,8 @@ type ResourceType = 'CATALOG_ITEM' | 'START_PROVISION' | 'PROVISION';
 export const apiPaths: { [key in ResourceType]: (args: any) => string } = {
     CATALOG_ITEM: ({ name }: { name: string }): string =>
       `${API}/catalogItems/${name}`,
-    START_PROVISION: ({}): string => `${API}/provision`,
-    PROVISION: ({name}: {name:string}) : string => `${API}/provision/${name}`,
+    START_PROVISION: ({}): string => `${API}/serviceRequest`,
+    PROVISION: ({name}: {name:string}) : string => `${API}/serviceRequest/${name}`,
 };
 
 export async function publicFetcher(path: string, opt?: Record<string, unknown>) {
