@@ -109,13 +109,23 @@ export default function() {
         setCurrentTab(tab)
     }
 
+    function goToTop() {
+        if (instructionsPanelRef.current) {
+            const instructionsPanel = instructionsPanelRef.current as HTMLDivElement;
+            instructionsPanel.scrollTo(0, 0);
+        }
+    }
+
+    function handlePrevious() {
+        if (currIndex < 0) {
+            setIframeModule(modules[currIndex-1].name);
+            goToTop();
+        }
+    }
     function handleNext() {
         if (currIndex+1 < modules.length) {
             setIframeModule(modules[currIndex+1].name);
-            if (instructionsPanelRef.current) {
-                const instructionsPanel = instructionsPanelRef.current as HTMLDivElement;
-                instructionsPanel.scrollTo(0, 0);
-            }
+            goToTop();
         } else {
             setSession({...session, completed: true});
             setIsModalRatingOpen(true);
@@ -136,10 +146,10 @@ export default function() {
                         <CheckCircleIcon />
                         <p className="app-wrapper__title-text">Lab completed.</p>
                     </div>
-                    <div className="app-wrapper__content">
+                    { session?.sessionUuid ? <div className="app-wrapper__content">
                         <p>If you want to try again, please restart the Lab.</p>
                         <Button className="app-wrapper__restart-btn" onClick={() => setIsModalRestartOpen(true)}>Restart</Button>
-                    </div>
+                    </div> : null }
                 </div> : isExpired ? <div className="app-wrapper__inner app__lab-expired">
                         <div className="app-wrapper__title">
                             <WarningTriangleIcon />
@@ -163,6 +173,7 @@ export default function() {
                         </div>
                         <iframe ref={ref}  src={initialFile} onLoad={onPageChange} width="100%" className="app__instructions" height="100%"></iframe>
                         <div className="app-iframe__inner">
+                            {currIndex > 0 ? <Button onClick={handlePrevious}>Previous</Button> : null}
                             <Button onClick={handleNext}>{currIndex+1 < modules.length ? 'Next':'End'}</Button>
                         </div>
                     </div>
