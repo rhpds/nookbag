@@ -1,12 +1,13 @@
 export const API = 'http://zerotouch-api.apps.babydev.dev.open.redhat.com'
 
-type ResourceType = 'CATALOG_ITEM' | 'START_PROVISION' | 'PROVISION';
+type ResourceType = 'CATALOG_ITEM' | 'START_PROVISION' | 'PROVISION' | 'RATINGS';
 
 export const apiPaths: { [key in ResourceType]: (args: any) => string } = {
     CATALOG_ITEM: ({ name }: { name: string }): string =>
       `${API}/catalogItems/${name}`,
     START_PROVISION: ({}): string => `${API}/serviceRequest`,
     PROVISION: ({name}: {name:string}) : string => `${API}/serviceRequest/${name}`,
+    RATINGS: ({name}: {name:string}): string => `${API}/api/ratings/v1/catalogitem/${name}`,
 };
 
 export async function publicFetcher(path: string, opt?: Record<string, unknown>) {

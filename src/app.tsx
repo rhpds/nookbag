@@ -8,6 +8,7 @@ import ProgressHeader from './progress-header';
 import StarRating from "./star-rating";
 import { CheckCircleIcon, WarningTriangleIcon } from "@patternfly/react-icons";
 import ModalRestart from "./modal-restart";
+import { apiPaths, publicFetcher } from "./api";
 
 import './app.css';
 
@@ -117,7 +118,7 @@ export default function() {
     }
 
     function handlePrevious() {
-        if (currIndex < 0) {
+        if (currIndex > 0) {
             setIframeModule(modules[currIndex-1].name);
             goToTop();
         }
@@ -132,7 +133,12 @@ export default function() {
         }
     }
 
-    function handleSubmitRating() {
+    async function handleSubmitRating() {
+        await publicFetcher(apiPaths.RATINGS({ name: session.catalogItemName }), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rating: modalState.rating?.rate, comment: modalState.rating?.comment }),
+        }) 
         setIsModalRatingOpen(false);
     }
 
@@ -174,7 +180,7 @@ export default function() {
                         <iframe ref={ref}  src={initialFile} onLoad={onPageChange} width="100%" className="app__instructions" height="100%"></iframe>
                         <div className="app-iframe__inner">
                             {currIndex > 0 ? <Button onClick={handlePrevious}>Previous</Button> : null}
-                            <Button onClick={handleNext}>{currIndex+1 < modules.length ? 'Next':'End'}</Button>
+                            <Button style={{marginLeft: 'auto'}} onClick={handleNext}>{currIndex+1 < modules.length ? 'Next':'End'}</Button>
                         </div>
                     </div>
                     {tabs.length > 0 ? <div className="split right">
@@ -193,7 +199,7 @@ export default function() {
                                 </div>
                             </>
                             :
-                            <iframe src={currentTab.url} height="100%" width="100%"></iframe>}
+                            <iframe src={currentTab.url} height="100%" width="100%" style={{ ...(currentTab.path === '/wetty' ? {padding: '0 32px', background: '#000'}:{}) }}></iframe>}
                         </div>
                     </div> : null}
                 </Split>

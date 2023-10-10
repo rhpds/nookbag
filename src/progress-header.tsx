@@ -44,7 +44,7 @@ export default function({sessionUuid, modules, progress, expirationTime, classNa
         >
             <div className="progress-modal">
                 <ul>{modules.map((m) => <li className={progress.current === m.name ? 'is-current' : progress.completed.includes(m.name) ? 'completed' : 'not-started'} key={m.name}>
-                    {progress.current === m.name ? <CheckIcon width="24" /> : <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="4" fill="currentColor"></circle></svg>}{progress.completed.includes(m.name) ? <Button variant="plain" onClick={() => handleGoTo(m.name)}>{m.label || m.name}</Button>:m.label || m.name}
+                    {progress.completed.includes(m.name) ? <CheckIcon width="24" /> : <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="4" fill="currentColor"></circle></svg>}{progress.completed.includes(m.name) ? <Button variant="plain" onClick={() => handleGoTo(m.name)}>{m.label || m.name}</Button>:m.label || m.name}
                 </li>)}</ul>
             </div>
         </Modal>
