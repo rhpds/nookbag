@@ -3,20 +3,18 @@ import React, { Dispatch, SetStateAction, useState } from "react";
 import ProgressBar from './progress-bar';
 import RemainingTime from './remaining-time';
 import { CheckIcon } from "@patternfly/react-icons";
-import ModalRestart from "./modal-restart";
 
 import './progress-header.css';
 
 
 export default function({sessionUuid, modules, progress, expirationTime, className, setIframeModule}: {sessionUuid: string, modules: {name: string, label?: string; validation_script?: string}[], progress: {current: string, inProgress: string[], notStarted: string[], completed: string[]}, expirationTime: number, className?: string, setIframeModule: Dispatch<SetStateAction<string>>}) {
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isModalRestartOpen, setIsModalRestartOpen] = useState(false);
 
     function handleModalToggle() {
         setIsModalOpen(!isModalOpen);
     }
     function handleModalRestartToggle() {
-        setIsModalRestartOpen(!isModalRestartOpen);
+        window.parent.postMessage("RESTART", "*");
     }
     function handleGoTo(m: string) {
         setIframeModule(m);
@@ -48,6 +46,5 @@ export default function({sessionUuid, modules, progress, expirationTime, classNa
                 </li>)}</ul>
             </div>
         </Modal>
-        <ModalRestart showWarning={true} isModalRestartOpen={isModalRestartOpen} setIsModalRestartOpen={setIsModalRestartOpen} sessionUuid={sessionUuid} />
     </>
 }

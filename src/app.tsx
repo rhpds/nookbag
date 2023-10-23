@@ -2,13 +2,9 @@ import React, { useState, useRef } from "react";
 import yaml from 'js-yaml';
 import fetch from 'unfetch';
 import useSWR from "swr";
-import { Button, Form, FormGroup, Modal, ModalVariant, TextArea } from '@patternfly/react-core';
+import { Button } from '@patternfly/react-core';
 import Split from 'react-split';
 import ProgressHeader from './progress-header';
-import StarRating from "./star-rating";
-import { CheckCircleIcon, WarningTriangleIcon } from "@patternfly/react-icons";
-import ModalRestart from "./modal-restart";
-import { apiPaths, publicFetcher } from "./api";
 
 import './app.css';
 
@@ -40,16 +36,6 @@ export default function() {
     const s = searchParams.get('s');
     const sessionIntend: Session = s ? JSON.parse(s) : null;
     const [session, setSession] = useState<Session>(sessionIntend);
-    const [isModalRestartOpen, setIsModalRestartOpen] = useState(false);
-    const [isModalRatingOpen, setIsModalRatingOpen] = useState(false);
-    const [modalState, setModalState] = useState<{
-        resourceClaimName?: string;
-        rating?: {
-          rate: number;
-          comment: string;
-        };
-        submitDisabled: boolean;
-      }>({ submitDisabled: false });
     const {data: dataResponses, error} = useSWR(['zero-config.yaml', 'zero-config.yml', './zero-touch-config.yaml','./zero-touch-config.yml', './nookbag.yml'], (urls) => Promise.all(urls.map(url => fetch(url))).then((responses) => Promise.all(
             responses
               .map((response) => {
@@ -72,8 +58,6 @@ export default function() {
     const [iframeModule, setIframeModule] = useState(modules[0].name);
     const currIndex = modules.findIndex(m => m.name === progress.current);
     const initialFile = `./${antoraDir}/${s_name ? s_name + "/" : ''}${version ? version + "/": ''}${iframeModule}.html`;
-    const isCompleted = session?.completed ?? false;
-    const isExpired = session?.lifespanEnd ? new Date(session?.lifespanEnd).getTime() <= new Date().getTime() : false;
 
     function onPageChange() {
         if (ref.current) {
@@ -129,17 +113,8 @@ export default function() {
             goToTop();
         } else {
             setSession({...session, completed: true});
-            setIsModalRatingOpen(true);
+            window.parent.postMessage("COMPLETED", "*");
         }
-    }
-
-    async function handleSubmitRating() {
-        await publicFetcher(apiPaths.RATINGS({ name: session.catalogItemName }), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rating: modalState.rating?.rate, comment: modalState.rating?.comment }),
-        }) 
-        setIsModalRatingOpen(false);
     }
 
     if (error) {
@@ -147,25 +122,6 @@ export default function() {
     }
 
     return <div className="app-wrapper">
-            {isCompleted ? <div className="app-wrapper__inner app__lab-completed">
-                    <div className="app-wrapper__title">
-                        <CheckCircleIcon />
-                        <p className="app-wrapper__title-text">Lab completed.</p>
-                    </div>
-                    { session?.sessionUuid ? <div className="app-wrapper__content">
-                        <p>If you want to try again, please restart the Lab.</p>
-                        <Button className="app-wrapper__restart-btn" onClick={() => setIsModalRestartOpen(true)}>Restart</Button>
-                    </div> : null }
-                </div> : isExpired ? <div className="app-wrapper__inner app__lab-expired">
-                        <div className="app-wrapper__title">
-                            <WarningTriangleIcon />
-                            <p className="app-wrapper__title-text">Your session expired.</p>
-                        </div>
-                        <div className="app-wrapper__content">
-                            <p>If you want to try again, please restart the Lab.</p>
-                            <Button className="app-wrapper__restart-btn" onClick={() => setIsModalRestartOpen(true)}>Restart</Button>
-                        </div>
-                </div> :
                 <Split
                     sizes={tabs.length > 0 ? [25, 75] : [100]}
                     minSize={100}
@@ -203,43 +159,5 @@ export default function() {
                         </div>
                     </div> : null}
                 </Split>
-            }
-            <Modal variant={ModalVariant.small} title="Lab Completed" isOpen={isModalRatingOpen} onClose={() => setIsModalRatingOpen(false)} actions={[
-                <Button key="submit" variant="primary" onClick={handleSubmitRating} isDisabled={modalState.submitDisabled}>
-                    Submit
-                </Button>
-            ]}>
-                <Form>
-                    <FormGroup
-                        fieldId="rating"
-                        label="How would you rate the quality of the supporting materials for this asset?"
-                    >
-                        <StarRating count={5} rating={modalState.rating?.rate} onRating={(rate) => setModalState({...modalState, rating: {...modalState.rating, rate}})} />
-                    </FormGroup>
-                    <FormGroup
-                        fieldId="comment"
-                        label={<span>Additional information</span>}
-                        isRequired={modalState.submitDisabled}
-                    >
-                        <TextArea
-                            id="comment"
-                            onChange={(comment) => {
-                                const rating = { ...modalState.rating, comment };
-                                setModalState({
-                                ...modalState,
-                                rating,
-                                submitDisabled:
-                                    Number.isFinite(rating.rate) && rating.rate < 3 ? !comment || comment.trim() === '' : false,
-                                });
-                            }}
-                            value={modalState.rating?.comment || ''}
-                            placeholder="Add comment"
-                            aria-label="Add comment"
-                            isRequired={modalState.submitDisabled}
-                        />
-                    </FormGroup>
-                </Form>
-            </Modal>
-            <ModalRestart isModalRestartOpen={isModalRestartOpen} showWarning={false} setIsModalRestartOpen={setIsModalRestartOpen} sessionUuid={session?.sessionUuid} />
-        </div>
+ </div>
 }
