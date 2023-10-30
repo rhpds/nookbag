@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import yaml from 'js-yaml';
 import fetch from 'unfetch';
 import useSWR from "swr";
@@ -8,12 +8,17 @@ import ProgressHeader from './progress-header';
 
 import './app.css';
 
-type tab = {name: string, url?: string, port?: string, secondary_port?: string, path?: string, secondary_path?: string, secondary_url?: string};
-
+type TTab = {name: string, url?: string, port?: string, secondary_port?: string, path?: string, secondary_path?: string, secondary_url?: string};
+type TProgress = {
+    inProgress: any[];
+    completed: any[];
+    notStarted: string[];
+    current: string;
+};
 const protocol = window.location.protocol;
 const hostname = window.location.hostname;
 
-const createUrlsFromVars = (vars: tab): tab  => {
+const createUrlsFromVars = (vars: TTab): TTab  => {
     if (vars.url) {
         return vars;
     }
@@ -34,8 +39,7 @@ export default function() {
     const instructionsPanelRef = useRef();
     const searchParams = new URLSearchParams(document.location.search);
     const s = searchParams.get('s');
-    const sessionIntend: Session = s ? JSON.parse(s) : null;
-    const [session, setSession] = useState<Session>(sessionIntend);
+    const session: Session = s ? JSON.parse(s) : null;
     const {data: dataResponses, error} = useSWR(['zero-config.yaml', 'zero-config.yml', './zero-touch-config.yaml','./zero-touch-config.yml', './nookbag.yml'], (urls) => Promise.all(urls.map(url => fetch(url))).then((responses) => Promise.all(
             responses
               .map((response) => {
@@ -47,17 +51,26 @@ export default function() {
           )).catch(null), { suspense: true });
     const data = dataResponses.find(Boolean);
     if (!data) throw new Error();
-    const config = yaml.load(data) as {antora: { modules: {name: string, validation_script?: string}[], name: string, dir?: string, version: string }, tabs: tab[]};
+    const config = yaml.load(data) as {antora: { modules: {name: string, validation_script?: string}[], name: string, dir?: string, version: string }, tabs: TTab[]};
     const modules = config.antora.modules;
     const antoraDir = config.antora.dir || 'antora';
     const version = config.antora.version;
     const s_name = config.antora.name;
     const tabs = config.tabs.map(s => createUrlsFromVars(s));
-    const [progress, setProgress] = useState({inProgress: [], completed: [], notStarted: modules.map(x => x.name), current: modules[0].name});
+    const PROGRESS_KEY = `PROGRESS-${session.sessionUuid}`;
+    const initProgressStr = window.localStorage.getItem(PROGRESS_KEY);
+    const initProgress: TProgress = initProgressStr ? JSON.parse(initProgressStr) : null;
+    const [progress, setProgress] = useState(initProgress ?? {inProgress: [], completed: [], notStarted: modules.map(x => x.name), current: modules[0].name});
     const [currentTab, setCurrentTab] = useState(tabs?.[0]);
-    const [iframeModule, setIframeModule] = useState(modules[0].name);
+    const [iframeModule, setIframeModule] = useState(progress.current);
     const currIndex = modules.findIndex(m => m.name === progress.current);
     const initialFile = `./${antoraDir}/${s_name ? s_name + "/" : ''}${version ? version + "/": ''}${iframeModule}.html`;
+
+    useEffect(() =>  {
+        if (session.sessionUuid) {
+            window.localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
+        }
+    }, [progress]);
 
     function onPageChange() {
         if (ref.current) {
@@ -90,7 +103,7 @@ export default function() {
         }
     }
 
-    function handleTabClick(tab: tab) {
+    function handleTabClick(tab: TTab) {
         setCurrentTab(tab)
     }
 
@@ -112,7 +125,7 @@ export default function() {
             setIframeModule(modules[currIndex+1].name);
             goToTop();
         } else {
-            setSession({...session, completed: true});
+            console.log('Lab completed!');
             window.parent.postMessage("COMPLETED", "*");
         }
     }
@@ -159,5 +172,5 @@ export default function() {
                         </div>
                     </div> : null}
                 </Split>
- </div>
+            </div>
 }
