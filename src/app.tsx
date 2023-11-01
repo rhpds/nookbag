@@ -57,8 +57,8 @@ export default function() {
     const version = config.antora.version;
     const s_name = config.antora.name;
     const tabs = config.tabs.map(s => createUrlsFromVars(s));
-    const PROGRESS_KEY = `PROGRESS-${session.sessionUuid}`;
-    const initProgressStr = window.localStorage.getItem(PROGRESS_KEY);
+    const PROGRESS_KEY = session ? `PROGRESS-${session.sessionUuid}` : null;
+    const initProgressStr = PROGRESS_KEY ? window.localStorage.getItem(PROGRESS_KEY) : null;
     const initProgress: TProgress = initProgressStr ? JSON.parse(initProgressStr) : null;
     const [progress, setProgress] = useState(initProgress ?? {inProgress: [], completed: [], notStarted: modules.map(x => x.name), current: modules[0].name});
     const [currentTab, setCurrentTab] = useState(tabs?.[0]);
@@ -67,7 +67,7 @@ export default function() {
     const initialFile = `./${antoraDir}/${s_name ? s_name + "/" : ''}${version ? version + "/": ''}${iframeModule}.html`;
 
     useEffect(() =>  {
-        if (session.sessionUuid) {
+        if (session?.sessionUuid && PROGRESS_KEY) {
             window.localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
         }
     }, [progress]);
