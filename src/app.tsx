@@ -2,10 +2,11 @@ import React, { useState, useRef, useEffect } from "react";
 import yaml from 'js-yaml';
 import fetch from 'unfetch';
 import useSWR from "swr";
-import { Button } from '@patternfly/react-core';
+import { Alert, AlertActionCloseButton, Button } from '@patternfly/react-core';
 import Split from 'react-split';
 import ProgressHeader from './progress-header';
-
+import { executeStageAndGetStatus } from "./utils";
+import Loading from './loading';
 import './app.css';
 
 type TTab = {name: string, url?: string, port?: string, secondary_port?: string, path?: string, secondary_path?: string, secondary_url?: string};
@@ -37,10 +38,11 @@ type Session = {sessionUuid: string, catalogItemName: string, start: string, sto
 export default function() {
     const ref = useRef();
     const instructionsPanelRef = useRef();
+    const [loaderStatus, setLoaderStatus] = useState<{isLoading: boolean, stage: 'setup' | 'validation' | 'solve' | null}>({ isLoading: false, stage: null });
     const searchParams = new URLSearchParams(document.location.search);
     const s = searchParams.get('s');
     const session: Session = s ? JSON.parse(s) : null;
-    const {data: dataResponses, error} = useSWR(['zero-config.yaml', 'zero-config.yml', './zero-touch-config.yaml','./zero-touch-config.yml', './nookbag.yml'], (urls) => Promise.all(urls.map(url => fetch(url))).then((responses) => Promise.all(
+    const {data: dataResponses, error} = useSWR(['./zero-config.yaml', './zero-config.yml', './zero-touch-config.yaml','./zero-touch-config.yml', './nookbag.yml'], (urls) => Promise.all(urls.map(url => fetch(url))).then((responses) => Promise.all(
             responses
               .map((response) => {
                   if (response.status === 200) {
@@ -56,6 +58,7 @@ export default function() {
     const antoraDir = config.antora.dir || 'antora';
     const version = config.antora.version;
     const s_name = config.antora.name;
+    const [validationMsg, setValidationMsg] = useState<{type: 'error'|'success', message: string}>(null);
     const tabs = config.tabs.map(s => createUrlsFromVars(s));
     const PROGRESS_KEY = session ? `PROGRESS-${session.sessionUuid}` : null;
     const initProgressStr = PROGRESS_KEY ? window.localStorage.getItem(PROGRESS_KEY) : null;
@@ -78,9 +81,9 @@ export default function() {
             const page = iframe.contentWindow.location.pathname.split('/');
             let key = "";
             if (page[page.length - 2] === version || !version) {
-                key = page[page.length - 1].split(".")[0]
+                key = page[page.length - 1].split(".")[0];
             } else {
-                key = `${page[page.length - 2]}/${page[page.length - 1].split(".")[0]}`
+                key = `${page[page.length - 2]}/${page[page.length - 1].split(".")[0]}`;
             }
             const _progress = {...progress};
             let pivotPassed = false;
@@ -88,23 +91,27 @@ export default function() {
                 if (m.name === key) {
                     pivotPassed = true;
                 } else if (pivotPassed) {
-                    _progress.notStarted.push(m.name)
+                    _progress.notStarted.push(m.name);
                 } else {
-                    _progress.completed.push(m.name)
+                    _progress.completed.push(m.name);
                 }
 
             })
-            _progress.inProgress = [key]
-            _progress.current = key
-            /*if (m.validation_script) {
-                // TODO: hit api to execute validation
-            }*/
-            setProgress(_progress);
+            _progress.inProgress = [key];
+            _progress.current = key;
+            setLoaderStatus({ isLoading: true, stage: 'setup' });
+            executeStageAndGetStatus(key, 'setup').then(_ => {
+                setProgress(_progress);
+                setLoaderStatus({ isLoading: false, stage: null });
+            }).catch(() => {
+                setProgress(_progress);
+                setLoaderStatus({ isLoading: false, stage: null });
+            })
         }
     }
 
     function handleTabClick(tab: TTab) {
-        setCurrentTab(tab)
+        setCurrentTab(tab);
     }
 
     function goToTop() {
@@ -116,17 +123,27 @@ export default function() {
 
     function handlePrevious() {
         if (currIndex > 0) {
+            setValidationMsg(null);
             setIframeModule(modules[currIndex-1].name);
             goToTop();
         }
     }
-    function handleNext() {
-        if (currIndex+1 < modules.length) {
-            setIframeModule(modules[currIndex+1].name);
-            goToTop();
+
+    async function handleNext() {
+        setValidationMsg(null);
+        setLoaderStatus({ isLoading: true, stage: 'validation' });
+        const res = await executeStageAndGetStatus(modules[currIndex].name, 'validation');
+        setLoaderStatus({ isLoading: false, stage: null });
+        if (res.Status === 'successful') {
+            if (currIndex+1 < modules.length) {
+                setIframeModule(modules[currIndex+1].name);
+                goToTop();
+            } else {
+                setValidationMsg({message:'Lab completed!', type: 'success'});
+                window.parent.postMessage("COMPLETED", "*");
+            }
         } else {
-            console.log('Lab completed!');
-            window.parent.postMessage("COMPLETED", "*");
+            setValidationMsg({message: res.Output || '', type:'error'});
         }
     }
 
@@ -134,7 +151,9 @@ export default function() {
         return <div>Configuration file not defined</div>
     }
 
-    return <div className="app-wrapper">
+    return <div>
+            <Loading text={loaderStatus.stage === 'setup' ? 'Environment Loading... Almost Ready!' : loaderStatus.stage === 'validation' ? 'Validating... Standby.' : loaderStatus.stage === 'solve' ? 'Solving... Standby.' : 'Loading...'} isVisible={loaderStatus.isLoading} />
+            <div className="app-wrapper">
                 <Split
                     sizes={tabs.length > 0 ? [25, 75] : [100]}
                     minSize={100}
@@ -151,6 +170,7 @@ export default function() {
                             {currIndex > 0 ? <Button onClick={handlePrevious}>Previous</Button> : null}
                             <Button style={{marginLeft: 'auto'}} onClick={handleNext}>{currIndex+1 < modules.length ? 'Next':'End'}</Button>
                         </div>
+                        {validationMsg ? <Alert variant={validationMsg.type === 'error' ? 'danger':'success'} title={validationMsg.type === 'error'?'Validation Error':'Lab Completed'} actionClose={<AlertActionCloseButton onClose={() => setValidationMsg(null)} />} >{validationMsg.message}</Alert>:null}
                     </div>
                     {tabs.length > 0 ? <div className="split right">
                         {tabs.length > 1 ? 
@@ -173,4 +193,5 @@ export default function() {
                     </div> : null}
                 </Split>
             </div>
+        </div>
 }
