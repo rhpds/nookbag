@@ -21,6 +21,9 @@ export async function getJobStatus(jobId: string): Promise<({'Status': 'successf
 
 export async function executeStage(moduleName: string, stage: 'setup' | 'validation' | 'solve') {
     const response = await fetch(`/runner/api/${moduleName}/${stage}`, {method: 'POST'});
+    if (!response.ok) {
+        return null;
+    }
     const data = await response.json();
     return data['Job_id'] ?? null;
 }
