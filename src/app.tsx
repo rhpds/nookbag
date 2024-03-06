@@ -38,7 +38,7 @@ type Session = {sessionUuid: string, catalogItemName: string, start: string, sto
 export default function() {
     const ref = useRef();
     const instructionsPanelRef = useRef();
-    const [loaderStatus, setLoaderStatus] = useState<{isLoading: boolean, stage: 'setup' | 'validation' | 'solve' | null}>({ isLoading: false, stage: null });
+    const [loaderStatus, setLoaderStatus] = useState<{isLoading: boolean, stage: 'setup' | 'validation' | 'solve' | null, loadingStart?: number}>({ isLoading: false, stage: null, loadingStart: undefined });
     const searchParams = new URLSearchParams(document.location.search);
     const s = searchParams.get('s');
     const session: Session = s ? JSON.parse(s) : null;
@@ -99,7 +99,7 @@ export default function() {
             })
             _progress.inProgress = [key];
             _progress.current = key;
-            setLoaderStatus({ isLoading: true, stage: 'setup' });
+            setLoaderStatus({ isLoading: true, stage: 'setup', loadingStart: Date.now() });
             executeStageAndGetStatus(key, 'setup').then(_ => {
                 setProgress(_progress);
                 setLoaderStatus({ isLoading: false, stage: null });
@@ -131,7 +131,7 @@ export default function() {
 
     async function handleNext() {
         setValidationMsg(null);
-        setLoaderStatus({ isLoading: true, stage: 'validation' });
+        setLoaderStatus({ isLoading: true, stage: 'validation', loadingStart: Date.now() });
         const res = await executeStageAndGetStatus(modules[currIndex].name, 'validation');
         setLoaderStatus({ isLoading: false, stage: null });
         if (res.Status === 'successful') {
@@ -152,7 +152,7 @@ export default function() {
     }
 
     return <div>
-            <Loading text={loaderStatus.stage === 'setup' ? 'Environment Loading... Almost Ready!' : loaderStatus.stage === 'validation' ? 'Validating... Standby.' : loaderStatus.stage === 'solve' ? 'Solving... Standby.' : 'Loading...'} isVisible={loaderStatus.isLoading} />
+            <Loading text={loaderStatus.stage === 'setup' ? 'Environment Loading... Almost Ready!' : loaderStatus.stage === 'validation' ? 'Validating... Standby.' : loaderStatus.stage === 'solve' ? 'Solving... Standby.' : 'Loading...'} isVisible={loaderStatus.isLoading || loaderStatus.loadingStart > Date.now() - 500 } />
             <div className="app-wrapper">
                 <Split
                     sizes={tabs.length > 0 ? [25, 75] : [100]}
