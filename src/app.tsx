@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import yaml from 'js-yaml';
 import fetch from 'unfetch';
 import useSWR from "swr";
-import { Alert, AlertActionCloseButton, Button } from '@patternfly/react-core';
+import { Alert, AlertActionCloseButton, Button, Tab, Tabs } from '@patternfly/react-core';
 import Split from 'react-split';
 import ProgressHeader from './progress-header';
 import { executeStageAndGetStatus } from "./utils";
@@ -38,7 +38,7 @@ type Session = {sessionUuid: string, catalogItemName: string, start: string, sto
 export default function() {
     const ref = useRef();
     const instructionsPanelRef = useRef();
-    const [loaderStatus, setLoaderStatus] = useState<{isLoading: boolean, stage: 'setup' | 'validation' | 'solve' | null, loadingStart?: number}>({ isLoading: false, stage: null, loadingStart: undefined });
+    const [loaderStatus, setLoaderStatus] = useState<{isLoading: boolean, stage: 'setup' | 'validation' | 'solve' | null}>({ isLoading: false, stage: null });
     const searchParams = new URLSearchParams(document.location.search);
     const s = searchParams.get('s');
     const session: Session = s ? JSON.parse(s) : null;
@@ -64,7 +64,7 @@ export default function() {
     const initProgressStr = PROGRESS_KEY ? window.localStorage.getItem(PROGRESS_KEY) : null;
     const initProgress: TProgress = initProgressStr ? JSON.parse(initProgressStr) : null;
     const [progress, setProgress] = useState(initProgress ?? {inProgress: [], completed: [], notStarted: modules.map(x => x.name), current: modules[0].name});
-    const [currentTab, setCurrentTab] = useState(tabs?.[0]);
+    const [currentTabName, setCurrentTabName] = useState(tabs[0] ? tabs[0].name : null);
     const [iframeModule, setIframeModule] = useState(progress.current);
     const currIndex = modules.findIndex(m => m.name === progress.current);
     const initialFile = `./${antoraDir}/${s_name ? s_name + "/" : ''}${version ? version + "/": ''}${iframeModule}.html`;
@@ -99,19 +99,21 @@ export default function() {
             })
             _progress.inProgress = [key];
             _progress.current = key;
-            setLoaderStatus({ isLoading: true, stage: 'setup', loadingStart: Date.now() });
-            executeStageAndGetStatus(key, 'setup').then(_ => {
+            setLoaderStatus({ isLoading: true, stage: 'setup' });
+            const executeStageAndGetStatusPromise = executeStageAndGetStatus(key, 'setup');
+            const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
+            Promise.all([executeStageAndGetStatusPromise, minTimeout]).then(_ => {
                 setProgress(_progress);
                 setLoaderStatus({ isLoading: false, stage: null });
             }).catch(() => {
                 setProgress(_progress);
                 setLoaderStatus({ isLoading: false, stage: null });
-            })
+            });
         }
     }
 
-    function handleTabClick(tab: TTab) {
-        setCurrentTab(tab);
+    function handleTabClick(event: React.MouseEvent<HTMLElement, MouseEvent>, tabIndex: string | number) {
+        setCurrentTabName(String(tabIndex));
     }
 
     function goToTop() {
@@ -131,18 +133,21 @@ export default function() {
 
     async function handleNext() {
         setValidationMsg(null);
-        setLoaderStatus({ isLoading: true, stage: 'validation', loadingStart: Date.now() });
-        const res = await executeStageAndGetStatus(modules[currIndex].name, 'validation');
-        setLoaderStatus({ isLoading: false, stage: null });
+        setLoaderStatus({ isLoading: true, stage: 'validation' });
+        const executeStageAndGetStatusPromise = executeStageAndGetStatus(modules[currIndex].name, 'validation');
+        const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
+        const [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
         if (res.Status === 'successful') {
             if (currIndex+1 < modules.length) {
                 setIframeModule(modules[currIndex+1].name);
                 goToTop();
             } else {
+                setLoaderStatus({ isLoading: false, stage: null });
                 setValidationMsg({message:'Lab completed!', type: 'success'});
                 window.parent.postMessage("COMPLETED", "*");
             }
         } else {
+            setLoaderStatus({ isLoading: false, stage: null });
             setValidationMsg({message: res.Output || '', type:'error'});
         }
     }
@@ -152,7 +157,7 @@ export default function() {
     }
 
     return <div>
-            <Loading text={loaderStatus.stage === 'setup' ? 'Environment Loading... Almost Ready!' : loaderStatus.stage === 'validation' ? 'Validating... Standby.' : loaderStatus.stage === 'solve' ? 'Solving... Standby.' : 'Loading...'} isVisible={loaderStatus.isLoading || loaderStatus.loadingStart > Date.now() - 500 } />
+            <Loading text={loaderStatus.stage === 'setup' ? 'Environment loading... almost ready!' : loaderStatus.stage === 'validation' ? 'Validating... standby.' : loaderStatus.stage === 'solve' ? 'Solving... standby.' : 'Loading...'} isVisible={loaderStatus.isLoading} />
             <div className="app-wrapper">
                 <Split
                     sizes={tabs.length > 0 ? [25, 75] : [100]}
@@ -174,22 +179,22 @@ export default function() {
                     </div>
                     {tabs.length > 0 ? <div className="split right">
                         {tabs.length > 1 ? 
-                        <div className="tab">
-                            {tabs.map(s => <Button variant="plain" isActive={s.name === currentTab.name} key={s.name} className="tablinks" onClick={() => handleTabClick(s)}>{s.name}</Button>)}
-                        </div> : null}
-                        <div className="tabcontent">
-                            {currentTab.secondary_url ?
+                        <Tabs activeKey={currentTabName} onSelect={handleTabClick}>
+                            {tabs.map(s => <Tab eventKey={s.name} title={s.name} className="tablinks"></Tab>)}
+                        </Tabs> : null}
+                        {tabs.map(tab => <div className={`tabcontent${tab.name === currentTabName ? ' active':''}`}>
+                            {tab.secondary_url ?
                             <>
                                 <div className="split top">
-                                    <iframe src={currentTab.url} width="100%"></iframe>
+                                    <iframe src={tab.url} width="100%"></iframe>
                                 </div>
                                 <div className="split bottom">
-                                    <iframe src={currentTab.secondary_url} width="100%"></iframe>
+                                    <iframe src={tab.secondary_url} width="100%"></iframe>
                                 </div>
                             </>
                             :
-                            <iframe src={currentTab.url} height="100%" width="100%" style={{ ...(currentTab.path === '/wetty' ? {padding: '0 32px', background: '#000'}:{}) }}></iframe>}
-                        </div>
+                            <iframe src={tab.url} height="100%" width="100%" style={{ ...(tab.path === '/wetty' || tab.path.startsWith('/tty') ? {padding: '0 32px', background: '#000'}:{}) }}></iframe>}
+                        </div>)}
                     </div> : null}
                 </Split>
             </div>

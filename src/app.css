@@ -77,15 +77,22 @@
     color: #111;
     text-decoration: underline;
   }
-  
+  .tablinks > button {
+    height: 51px;
+    align-items: center;
+  }
+
   /* Style the tab content */
   
   .tabcontent {
     border: 0;
     height: 100%;
-    display: flex;
     flex-direction: column;
     align-items: stretch;
+    display: none;
+  }
+  .tabcontent.active {
+    display: flex;
   }
 
   .app-iframe__inner {

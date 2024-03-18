@@ -11,12 +11,12 @@ export async function getJobStatus(jobId: string): Promise<({'Status': 'successf
         if (status === 'scheduled' || status === 'running') {
             return await jobStatusFn();
         } else {
-            return data;
+            return Promise.resolve(data);
         }
     }
-    return {
+    return Promise.resolve({
         'Status': 'error'
-    }
+    })
 }
 
 export async function executeStage(moduleName: string, stage: 'setup' | 'validation' | 'solve') {
