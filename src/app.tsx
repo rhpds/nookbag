@@ -172,8 +172,8 @@ export default function() {
                         </div>
                         <iframe ref={ref}  src={initialFile} onLoad={onPageChange} width="100%" className="app__instructions" height="100%"></iframe>
                         <div className="app-iframe__inner">
-                            {currIndex > 0 ? <Button onClick={handlePrevious}>Previous</Button> : null}
-                            <Button style={{marginLeft: 'auto'}} onClick={handleNext}>{currIndex+1 < modules.length ? 'Next':'End'}</Button>
+                            {currIndex > 0 ? <Button onClick={handlePrevious} className="lab-actions__previous">Previous</Button> : null}
+                            <Button style={{marginLeft: 'auto'}} className="lab-actions__next" onClick={handleNext}>{currIndex+1 < modules.length ? 'Next':'End'}</Button>
                         </div>
                         {validationMsg ? <Alert variant={validationMsg.type === 'error' ? 'danger':'success'} title={validationMsg.type === 'error'?'Validation Error':'Lab Completed'} actionClose={<AlertActionCloseButton onClose={() => setValidationMsg(null)} />} >{validationMsg.message}</Alert>:null}
                     </div>
