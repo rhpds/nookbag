@@ -193,7 +193,7 @@ export default function() {
                                 </div>
                             </>
                             :
-                            <iframe src={tab.url} height="100%" width="100%" style={{ ...(tab.path === '/wetty' || tab.path?.startsWith('/tty') ? {padding: '0 32px', background: '#000'}:{}) }}></iframe>}
+                            (tab.name === currentTabName || tab.path === '/wetty' || tab.path?.startsWith('/tty')) ? <iframe src={tab.url} height="100%" width="100%" style={{ ...(tab.path === '/wetty' || tab.path?.startsWith('/tty') ? {padding: '0 32px', background: '#000'}:{}) }}></iframe>: null}
                         </div>)}
                     </div> : null}
                 </Split>
