@@ -197,6 +197,19 @@ export default function () {
     }
   }
 
+  async function executeSolve() {
+    setLoaderStatus({ isLoading: true, stage: 'solve' });
+    const executeStageAndGetStatusPromise = executeStageAndGetStatus(modules[currIndex].name, 'solve');
+    const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
+    const [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
+    if (res.Status === 'successful') {
+      setLoaderStatus({ isLoading: false, stage: null });
+    } else {
+      setLoaderStatus({ isLoading: false, stage: null });
+      setValidationMsg({ message: res.Output || '', type: 'error' });
+    }
+  }
+
   if (error) {
     return <div>Configuration file not defined</div>;
   }
@@ -250,7 +263,7 @@ export default function () {
                 </Button>
               ) : null}
               {showSolveBtn(modules[currIndex]) ? (
-                <Button style={{ marginLeft: 'auto' }} className="lab-actions__solve" onClick={handleNext}>
+                <Button style={{ marginLeft: 'auto' }} className="lab-actions__solve" onClick={executeSolve}>
                   Solve
                 </Button>
               ) : null}
