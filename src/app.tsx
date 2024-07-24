@@ -263,7 +263,7 @@ export default function () {
                 </Button>
               ) : null}
               {showSolveBtn(modules[currIndex]) ? (
-                <Button style={{ marginLeft: 'auto' }} className="lab-actions__solve" onClick={executeSolve}>
+                <Button style={{ marginLeft: 'auto' }} variant="secondary" className="lab-actions__solve" onClick={executeSolve}>
                   Solve
                 </Button>
               ) : null}
