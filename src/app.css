@@ -38,6 +38,11 @@ iframe {
   flex-grow: 1;
 }
 
+.split.right {
+  display: flex;
+  flex-direction: column;
+}
+
 .split.top,
 .split.bottom {
   flex: 1;

@@ -284,7 +284,7 @@ export default function () {
           {tabs.length > 0 ? (
             <div className="split right">
               {tabs.length > 1 ? (
-                <Tabs activeKey={currentTabName} onSelect={handleTabClick}>
+                <Tabs activeKey={currentTabName} onSelect={handleTabClick} style={{ height: '59px' }}>
                   {tabs.map((s) => (
                     <Tab eventKey={s.name} title={s.name} className="tablinks"></Tab>
                   ))}
