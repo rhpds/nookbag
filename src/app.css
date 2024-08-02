@@ -86,7 +86,7 @@ iframe {
   text-decoration: underline;
 }
 .tablinks > button {
-  height: 51px;
+  height: 100%;
   align-items: center;
 }
 
