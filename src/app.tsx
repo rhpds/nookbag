@@ -31,14 +31,17 @@ const hostname = window.location.hostname;
 
 const createUrlsFromVars = (vars: TTab): TTab => {
   if (vars.url) {
-    return vars;
+    return {
+      ...vars,
+      external: vars.external ? Boolean(vars.external) : false,
+    };
   }
   if (!vars.port) {
     throw Error('Port and url not defined');
   }
   return {
     ...vars,
-    external: vars.external ?? false,
+    external: vars.external ? Boolean(vars.external) : false,
     url: `${protocol}//${hostname}${vars.port ? ':' + vars.port : ''}${vars.path || ''}`,
     ...(vars.secondary_path
       ? {
@@ -159,16 +162,12 @@ export default function () {
     }
   }
 
-  function handleTabClick(
-    event: React.MouseEvent<HTMLElement, MouseEvent>,
-    tabIndex: string | number,
-    currentTabName: string
-  ) {
-    const tab = tabs.find((x) => x.name === currentTabName);
+  function handleTabClick(event: React.MouseEvent<HTMLElement, MouseEvent>, tabIndex: string | number) {
+    const tab = tabs.find((x) => x.name === String(tabIndex));
     if (tab.external) {
       window.open(tab.url, '_blank');
     } else {
-      setCurrentTabName(String(tabIndex));
+      setCurrentTabName(tab.name);
     }
   }
 
@@ -300,11 +299,7 @@ export default function () {
           {tabs.length > 0 ? (
             <div className="split right">
               {tabs.length > 1 ? (
-                <Tabs
-                  activeKey={currentTabName}
-                  onSelect={(ev, index) => handleTabClick(ev, index, currentTabName)}
-                  style={{ height: '56px' }}
-                >
+                <Tabs activeKey={currentTabName} onSelect={handleTabClick} style={{ height: '56px' }}>
                   {tabs.map((s) => (
                     <Tab eventKey={s.name} title={s.name} className="tablinks"></Tab>
                   ))}
