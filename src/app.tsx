@@ -12,6 +12,7 @@ import './app.css';
 type TTab = {
   name: string;
   url?: string;
+  external?: boolean;
   port?: string;
   secondary_port?: string;
   path?: string;
@@ -37,6 +38,7 @@ const createUrlsFromVars = (vars: TTab): TTab => {
   }
   return {
     ...vars,
+    external: vars.external ?? false,
     url: `${protocol}//${hostname}${vars.port ? ':' + vars.port : ''}${vars.path || ''}`,
     ...(vars.secondary_path
       ? {
@@ -157,8 +159,17 @@ export default function () {
     }
   }
 
-  function handleTabClick(event: React.MouseEvent<HTMLElement, MouseEvent>, tabIndex: string | number) {
-    setCurrentTabName(String(tabIndex));
+  function handleTabClick(
+    event: React.MouseEvent<HTMLElement, MouseEvent>,
+    tabIndex: string | number,
+    currentTabName: string
+  ) {
+    const tab = tabs.find((x) => x.name === currentTabName);
+    if (tab.external) {
+      window.open(tab.url, '_blank');
+    } else {
+      setCurrentTabName(String(tabIndex));
+    }
   }
 
   function goToTop() {
@@ -263,7 +274,12 @@ export default function () {
                 </Button>
               ) : null}
               {showSolveBtn(modules[currIndex]) ? (
-                <Button style={{ marginLeft: 'auto' }} variant="secondary" className="lab-actions__solve" onClick={executeSolve}>
+                <Button
+                  style={{ marginLeft: 'auto' }}
+                  variant="secondary"
+                  className="lab-actions__solve"
+                  onClick={executeSolve}
+                >
                   Solve
                 </Button>
               ) : null}
@@ -284,7 +300,11 @@ export default function () {
           {tabs.length > 0 ? (
             <div className="split right">
               {tabs.length > 1 ? (
-                <Tabs activeKey={currentTabName} onSelect={handleTabClick} style={{ height: '56px' }}>
+                <Tabs
+                  activeKey={currentTabName}
+                  onSelect={(ev, index) => handleTabClick(ev, index, currentTabName)}
+                  style={{ height: '56px' }}
+                >
                   {tabs.map((s) => (
                     <Tab eventKey={s.name} title={s.name} className="tablinks"></Tab>
                   ))}
