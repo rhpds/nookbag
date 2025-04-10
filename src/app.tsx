@@ -79,7 +79,7 @@ export default function () {
   const s = searchParams.get('s');
   const session: Session = s ? JSON.parse(s) : null;
   const { data: dataResponses, error } = useSWR(
-    ['./zero-config.yaml', './zero-config.yml', './zero-touch-config.yaml', './zero-touch-config.yml', './nookbag.yml'],
+    ['./ui-config.yml', './ui-config.yaml', './zero-touch-config.yaml', './zero-touch-config.yml'],
     (urls) =>
       Promise.all(urls.map((url) => fetch(url)))
         .then((responses) =>
