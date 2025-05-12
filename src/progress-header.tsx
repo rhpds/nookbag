@@ -1,11 +1,11 @@
-import { Button, Modal, ModalVariant } from '@patternfly/react-core';
+import { Button, Modal, ModalFooter, ModalBody, ModalHeader, ModalVariant } from '@patternfly/react-core';
 import React, { Dispatch, SetStateAction, useState } from 'react';
 import ProgressBar from './progress-bar';
 import RemainingTime from './remaining-time';
 import { CheckIcon } from '@patternfly/react-icons';
+import { TModule } from './app';
 
 import './progress-header.css';
-import { TModule } from './app';
 
 export default function ({
   sessionUuid,
@@ -34,30 +34,19 @@ export default function ({
     setIframeModule(m);
     handleModalToggle();
   }
+  function handleModalStopToggle() {
+    window.parent.postMessage('STOP_EXIT', '*');
+  }
 
   return (
     <>
-      <Button className={className || ''} variant="plain" onClick={handleModalToggle}>
+      <a href="#" className="progress-header--inner" onClick={handleModalToggle}>
         <ProgressBar modules={modules} progress={progress} />
         {!isNaN(expirationTime) ? <RemainingTime expirationTime={expirationTime} /> : null}
-      </Button>
-      <Modal
-        title="Progress"
-        isOpen={isModalOpen}
-        onClose={handleModalToggle}
-        variant={ModalVariant.medium}
-        actions={[
-          <Button key="restart" variant="primary" onClick={handleModalToggle}>
-            Close
-          </Button>,
-          sessionUuid ? (
-            <Button key="restart" variant="secondary" onClick={handleModalRestartToggle}>
-              Restart
-            </Button>
-          ) : null,
-        ]}
-      >
-        <div className="progress-modal">
+      </a>
+      <Modal title="Progress" isOpen={isModalOpen} onClose={handleModalToggle} variant={ModalVariant.medium}>
+        <ModalHeader title="Progress" />
+        <ModalBody className="progress-modal">
           <ul>
             {modules.map((m) => (
               <li
@@ -87,8 +76,23 @@ export default function ({
               </li>
             ))}
           </ul>
-        </div>
+        </ModalBody>
+        <ModalFooter>
+          <Button key="restart" variant="primary" onClick={handleModalToggle}>
+            Close
+          </Button>
+          {sessionUuid ? (
+            <Button key="restart" variant="secondary" onClick={handleModalRestartToggle}>
+              Restart
+            </Button>
+          ) : null}
+        </ModalFooter>
       </Modal>
+      {sessionUuid ? (
+        <Button key="stop" variant="secondary" size="sm" onClick={handleModalStopToggle}>
+          Exit
+        </Button>
+      ) : null}
     </>
   );
 }

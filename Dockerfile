@@ -9,6 +9,6 @@ RUN npm ci && npm cache clean --force
 COPY ./ ./
 RUN npm run build
 
-FROM registry.access.redhat.com/rhscl/httpd-24-rhel7
+FROM registry.redhat.io/rhel9/httpd-24
 
 COPY --from=builder /build/dist /var/www/html/
