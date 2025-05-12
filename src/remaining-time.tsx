@@ -8,7 +8,7 @@ export default function ({ expirationTime }: { expirationTime: number }) {
     function calculateRemainingMins() {
       const remainingTime = expirationTime - Date.now();
       const r = remainingTime !== undefined ? Math.ceil(remainingTime / 1000 / 60) : undefined;
-      if (r !== remainingMins) setRemainingMins(r);
+      if (r !== remainingMins) setRemainingMins(r ?? 0);
     }
     const interval = setInterval(calculateRemainingMins, 1000);
     calculateRemainingMins();

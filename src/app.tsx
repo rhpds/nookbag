@@ -69,8 +69,8 @@ type Session = {
 };
 
 export default function () {
-  const ref = useRef();
-  const instructionsPanelRef = useRef();
+  const ref = useRef(null);
+  const instructionsPanelRef = useRef(null);
   const [loaderStatus, setLoaderStatus] = useState<{
     isLoading: boolean;
     stage: 'setup' | 'validation' | 'solve' | null;
@@ -79,7 +79,7 @@ export default function () {
   const s = searchParams.get('s');
   const session: Session = s ? JSON.parse(s) : null;
   const { data: dataResponses, error } = useSWR(
-    ['./ui-config.yml', './ui-config.yaml', './zero-touch-config.yaml', './zero-touch-config.yml'],
+    ['./ui-config.yml', './zero-touch-config.yml'],
     (urls) =>
       Promise.all(urls.map((url) => fetch(url)))
         .then((responses) =>
@@ -105,7 +105,7 @@ export default function () {
   const antoraDir = config.antora.dir || 'antora';
   const version = config.antora.version;
   const s_name = config.antora.name;
-  const [validationMsg, setValidationMsg] = useState<{ type: 'error' | 'success'; message: string }>(null);
+  const [validationMsg, setValidationMsg] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
   const tabs = config.tabs.map((s) => createUrlsFromVars(s));
   const PROGRESS_KEY = session ? `PROGRESS-${session.sessionUuid}` : null;
   const initProgressStr = PROGRESS_KEY ? window.localStorage.getItem(PROGRESS_KEY) : null;
@@ -113,7 +113,7 @@ export default function () {
   const [progress, setProgress] = useState(
     initProgress ?? { inProgress: [], completed: [], notStarted: modules.map((x) => x.name), current: modules[0].name }
   );
-  const [currentTabName, setCurrentTabName] = useState(tabs[0] ? tabs[0].name : null);
+  const [currentTabName, setCurrentTabName] = useState(tabs[0] ? tabs[0].name : undefined);
   const [iframeModule, setIframeModule] = useState(progress.current);
   const currIndex = modules.findIndex((m) => m.name === progress.current);
   const initialFile = `./${antoraDir}/${s_name ? s_name + '/' : ''}${version ? version + '/' : ''}${iframeModule}.html`;
@@ -127,6 +127,7 @@ export default function () {
   function onPageChange() {
     if (ref.current) {
       const iframe = ref.current as HTMLIFrameElement;
+      if (!iframe || !iframe.contentWindow) throw new Error('No valid iframe found');
       const page = iframe.contentWindow.location.pathname.split('/');
       let key = '';
       if (page[page.length - 2] === version || !version) {
@@ -164,6 +165,9 @@ export default function () {
 
   function handleTabClick(event: React.MouseEvent<HTMLElement, MouseEvent>, tabIndex: string | number) {
     const tab = tabs.find((x) => x.name === String(tabIndex));
+    if (!tab) {
+      throw new Error('No tab found');
+    }
     if (tab.external) {
       window.open(tab.url, '_blank');
     } else {
@@ -251,7 +255,6 @@ export default function () {
             <div className="app__toolbar">
               <ProgressHeader
                 sessionUuid={session?.sessionUuid}
-                className="app__toolbar--inner"
                 modules={modules}
                 progress={progress}
                 expirationTime={Date.parse(session?.lifespanEnd)}
