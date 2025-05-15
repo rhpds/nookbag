@@ -1,12 +1,13 @@
 import fetch from 'unfetch';
 import { Step } from './types';
 
+const API_PATH = '/runner/api';
 export async function getJobStatus(jobId: string): Promise<{ Status: 'successful' | 'error'; Output?: string }> {
   async function jobStatusFn() {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     return getJobStatus(jobId);
   }
-  const response = await fetch(`/runner/api/job/${jobId}`);
+  const response = await fetch(`${API_PATH}/job/${jobId}`);
   const data = await response.json();
   const status = data['Status'];
 
@@ -23,7 +24,7 @@ export async function getJobStatus(jobId: string): Promise<{ Status: 'successful
 }
 
 export async function executeStage(moduleName: string, stage: Step): Promise<string | null> {
-  const response = await fetch(`/runner/api/${moduleName}/${stage}`, { method: 'POST' });
+  const response = await fetch(`${API_PATH}/${moduleName}/${stage}`, { method: 'POST' });
   if (!response.ok) {
     return null;
   }
@@ -42,7 +43,7 @@ export async function executeStageAndGetStatus(
   return Promise.resolve({ Status: 'successful', Output: 'Script not found' });
 }
 
-export const API_CONFIG = 'http://localhost:8080/api/config';
+export const API_CONFIG = '/runner/api/config';
 export const fetcher = (url: string) => fetch(url).then((r) => r.json());
 export const silentFetcher = async (url: string) => {
   try {
