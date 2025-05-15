@@ -5,7 +5,7 @@ import useSWR from 'swr';
 import { Alert, AlertActionCloseButton, Button, Tab, Tabs } from '@patternfly/react-core';
 import Split from 'react-split';
 import ProgressHeader from './progress-header';
-import { executeStageAndGetStatus, API_CONFIG, fetcher } from './utils';
+import { executeStageAndGetStatus, API_CONFIG, silentFetcher } from './utils';
 import Loading from './loading';
 import { ModuleSteps, Step, TModule, TProgress, TTab } from './types';
 import './app.css';
@@ -43,6 +43,7 @@ function isScriptAvailable(module: TModule, scriptName: Step) {
 
 function showSolveBtn(module: TModule) {
   if (module.solveButton === true) return true;
+  if (!module.scripts) return false;
   return isScriptAvailable(module, 'solve');
 }
 
@@ -84,7 +85,7 @@ export default function () {
         .catch(null),
     { suspense: true }
   );
-  const { data: configData, error: errConfig } = useSWR<ModuleSteps>(API_CONFIG, fetcher, { suspense: true });
+  const { data: configData, error: errConfig } = useSWR<ModuleSteps>(API_CONFIG, silentFetcher, { suspense: true });
   const data = dataResponses.find(Boolean);
   if (!data) throw new Error();
   const config = yaml.load(data) as {
@@ -92,13 +93,13 @@ export default function () {
     tabs: TTab[];
   };
   if (configData) {
-    Object.keys(configData).map((k) => {
-      Object.entries(config.antora.modules).map((module) => {
-        const [moduleName, moduleValue] = module;
-        if (moduleName === k) {
-          moduleValue.scripts = configData[k];
+    Object.keys(configData).forEach((k) => {
+      for (let m in Object.entries(config.antora.modules)) {
+        const module = config.antora.modules[m];
+        if (module.name === k) {
+          module.scripts = configData[k];
         }
-      });
+      }
     });
   }
   const modules = config.antora.modules;
@@ -148,7 +149,8 @@ export default function () {
       });
       _progress.inProgress = [key];
       _progress.current = key;
-      if (isScriptAvailable(modules[key], 'setup')) {
+      const module = modules.find((x) => x.name === key);
+      if (module && isScriptAvailable(module, 'setup')) {
         setLoaderStatus({ isLoading: true, stage: 'setup' });
         const executeStageAndGetStatusPromise = executeStageAndGetStatus(key, 'setup');
         const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
@@ -165,7 +167,7 @@ export default function () {
     }
   }
 
-  function handleTabClick(event: React.MouseEvent<HTMLElement, MouseEvent>, tabIndex: string | number) {
+  function handleTabClick(_: React.MouseEvent<HTMLElement, MouseEvent>, tabIndex: string | number) {
     const tab = tabs.find((x) => x.name === String(tabIndex));
     if (!tab) {
       throw new Error('No tab found');
@@ -194,12 +196,12 @@ export default function () {
 
   async function handleNext() {
     setValidationMsg(null);
-    let res: { Status: 'error' | 'successful'; Output?: string | undefined } | null = null;
+    let res: { Status: 'error' | 'successful'; Output?: string } | null = null;
     if (isScriptAvailable(modules[currIndex], 'validation')) {
       setLoaderStatus({ isLoading: true, stage: 'validation' });
       const executeStageAndGetStatusPromise = executeStageAndGetStatus(modules[currIndex].name, 'validation');
-      const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
-      res = await Promise.all([executeStageAndGetStatusPromise, minTimeout])[0];
+      const minTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 500));
+      [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
     }
     if (res === null || res.Status === 'successful') {
       if (currIndex + 1 < modules.length) {
