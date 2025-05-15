@@ -5,27 +5,11 @@ import useSWR from 'swr';
 import { Alert, AlertActionCloseButton, Button, Tab, Tabs } from '@patternfly/react-core';
 import Split from 'react-split';
 import ProgressHeader from './progress-header';
-import { executeStageAndGetStatus } from './utils';
+import { executeStageAndGetStatus, API_CONFIG, silentFetcher } from './utils';
 import Loading from './loading';
+import { ModuleSteps, Step, TModule, TProgress, TTab } from './types';
 import './app.css';
 
-type TTab = {
-  name: string;
-  url?: string;
-  external?: boolean;
-  port?: string;
-  secondary_port?: string;
-  path?: string;
-  secondary_path?: string;
-  secondary_url?: string;
-};
-type TProgress = {
-  inProgress: any[];
-  completed: any[];
-  notStarted: string[];
-  current: string;
-};
-export type TModule = { name: string; validation_script?: string; label?: string; solveButton?: boolean };
 const protocol = window.location.protocol;
 const hostname = window.location.hostname;
 
@@ -53,8 +37,14 @@ const createUrlsFromVars = (vars: TTab): TTab => {
   };
 };
 
+function isScriptAvailable(module: TModule, scriptName: Step) {
+  return !module.scripts || module.scripts.includes(scriptName);
+}
+
 function showSolveBtn(module: TModule) {
-  return module.solveButton === true;
+  if (module.solveButton === true) return true;
+  if (!module.scripts) return false;
+  return isScriptAvailable(module, 'solve');
 }
 
 type Session = {
@@ -95,12 +85,23 @@ export default function () {
         .catch(null),
     { suspense: true }
   );
+  const { data: configData, error: errConfig } = useSWR<ModuleSteps>(API_CONFIG, silentFetcher, { suspense: true });
   const data = dataResponses.find(Boolean);
   if (!data) throw new Error();
   const config = yaml.load(data) as {
     antora: { modules: TModule[]; name: string; dir?: string; version: string };
     tabs: TTab[];
   };
+  if (configData) {
+    Object.keys(configData).forEach((k) => {
+      for (let m in Object.entries(config.antora.modules)) {
+        const module = config.antora.modules[m];
+        if (module.name === k) {
+          module.scripts = configData[k];
+        }
+      }
+    });
+  }
   const modules = config.antora.modules;
   const antoraDir = config.antora.dir || 'antora';
   const version = config.antora.version;
@@ -148,22 +149,25 @@ export default function () {
       });
       _progress.inProgress = [key];
       _progress.current = key;
-      setLoaderStatus({ isLoading: true, stage: 'setup' });
-      const executeStageAndGetStatusPromise = executeStageAndGetStatus(key, 'setup');
-      const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
-      Promise.all([executeStageAndGetStatusPromise, minTimeout])
-        .then((_) => {
-          setProgress(_progress);
-          setLoaderStatus({ isLoading: false, stage: null });
-        })
-        .catch(() => {
-          setProgress(_progress);
-          setLoaderStatus({ isLoading: false, stage: null });
-        });
+      const module = modules.find((x) => x.name === key);
+      if (module && isScriptAvailable(module, 'setup')) {
+        setLoaderStatus({ isLoading: true, stage: 'setup' });
+        const executeStageAndGetStatusPromise = executeStageAndGetStatus(key, 'setup');
+        const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
+        Promise.all([executeStageAndGetStatusPromise, minTimeout])
+          .then((_) => {
+            setProgress(_progress);
+            setLoaderStatus({ isLoading: false, stage: null });
+          })
+          .catch(() => {
+            setProgress(_progress);
+            setLoaderStatus({ isLoading: false, stage: null });
+          });
+      }
     }
   }
 
-  function handleTabClick(event: React.MouseEvent<HTMLElement, MouseEvent>, tabIndex: string | number) {
+  function handleTabClick(_: React.MouseEvent<HTMLElement, MouseEvent>, tabIndex: string | number) {
     const tab = tabs.find((x) => x.name === String(tabIndex));
     if (!tab) {
       throw new Error('No tab found');
@@ -192,11 +196,14 @@ export default function () {
 
   async function handleNext() {
     setValidationMsg(null);
-    setLoaderStatus({ isLoading: true, stage: 'validation' });
-    const executeStageAndGetStatusPromise = executeStageAndGetStatus(modules[currIndex].name, 'validation');
-    const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
-    const [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
-    if (res.Status === 'successful') {
+    let res: { Status: 'error' | 'successful'; Output?: string } | null = null;
+    if (isScriptAvailable(modules[currIndex], 'validation')) {
+      setLoaderStatus({ isLoading: true, stage: 'validation' });
+      const executeStageAndGetStatusPromise = executeStageAndGetStatus(modules[currIndex].name, 'validation');
+      const minTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 500));
+      [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
+    }
+    if (res === null || res.Status === 'successful') {
       if (currIndex + 1 < modules.length) {
         setIframeModule(modules[currIndex + 1].name);
         goToTop();
@@ -212,15 +219,17 @@ export default function () {
   }
 
   async function executeSolve() {
-    setLoaderStatus({ isLoading: true, stage: 'solve' });
-    const executeStageAndGetStatusPromise = executeStageAndGetStatus(modules[currIndex].name, 'solve');
-    const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
-    const [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
-    if (res.Status === 'successful') {
-      setLoaderStatus({ isLoading: false, stage: null });
-    } else {
-      setLoaderStatus({ isLoading: false, stage: null });
-      setValidationMsg({ message: res.Output || '', type: 'error' });
+    if (isScriptAvailable(modules[currIndex], 'solve')) {
+      setLoaderStatus({ isLoading: true, stage: 'solve' });
+      const executeStageAndGetStatusPromise = executeStageAndGetStatus(modules[currIndex].name, 'solve');
+      const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
+      const [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
+      if (res.Status === 'successful') {
+        setLoaderStatus({ isLoading: false, stage: null });
+      } else {
+        setLoaderStatus({ isLoading: false, stage: null });
+        setValidationMsg({ message: res.Output || '', type: 'error' });
+      }
     }
   }
 
