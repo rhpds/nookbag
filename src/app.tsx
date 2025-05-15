@@ -38,10 +38,11 @@ const createUrlsFromVars = (vars: TTab): TTab => {
 };
 
 function isScriptAvailable(module: TModule, scriptName: Step) {
-  return module.scripts && module.scripts.includes(scriptName);
+  return !module.scripts || module.scripts.includes(scriptName);
 }
 
 function showSolveBtn(module: TModule) {
+  if (module.solveButton === true) return true;
   return isScriptAvailable(module, 'solve');
 }
 

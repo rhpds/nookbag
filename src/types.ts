@@ -18,4 +18,4 @@ export type Step = 'setup' | 'validation' | 'solve';
 export type ModuleSteps = {
   [key: string]: Step[];
 };
-export type TModule = { name: string; scripts?: Step[]; label?: string };
+export type TModule = { name: string; scripts?: Step[]; label?: string; solveButton?: boolean };
