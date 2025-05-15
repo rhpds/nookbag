@@ -3,7 +3,7 @@ import React, { Dispatch, SetStateAction, useState } from 'react';
 import ProgressBar from './progress-bar';
 import RemainingTime from './remaining-time';
 import { CheckIcon } from '@patternfly/react-icons';
-import { TModule } from './app';
+import { TModule } from './types';
 
 import './progress-header.css';
 
