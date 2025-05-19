@@ -43,7 +43,7 @@ export async function executeStageAndGetStatus(
   return Promise.resolve({ Status: 'successful', Output: 'Script not found' });
 }
 
-export const API_CONFIG = '/runner/api/config';
+export const API_CONFIG = `${API_PATH}/config`;
 export const fetcher = (url: string) => fetch(url).then((r) => r.json());
 export const silentFetcher = async (url: string) => {
   try {
