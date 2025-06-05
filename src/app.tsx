@@ -314,7 +314,7 @@ export default function () {
               {showTabsBar ? (
                 <Tabs activeKey={currentTabName} onSelect={handleTabClick} style={{ height: '56px' }}>
                   {tabs.map((s) => (
-                    <Tab eventKey={s.name} title={<TabTitleText>s.name</TabTitleText>} className="tablinks"></Tab>
+                    <Tab eventKey={s.name} title={<TabTitleText>{s.name}</TabTitleText>} className="tablinks"></Tab>
                   ))}
                 </Tabs>
               ) : null}
@@ -327,7 +327,7 @@ export default function () {
                       </div>
                       {tab.secondary_name ? (
                         <Tabs activeKey={currentTabName} style={{ height: '56px' }}>
-                          <Tab eventKey={tab.name} title={<TabTitleText>tab.secondary_name</TabTitleText>}></Tab>
+                          <Tab eventKey={tab.name} title={<TabTitleText>{tab.secondary_name}</TabTitleText>}></Tab>
                         </Tabs>
                       ) : null}
                       <div className="split bottom">
