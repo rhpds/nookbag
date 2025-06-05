@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import yaml from 'js-yaml';
 import fetch from 'unfetch';
 import useSWR from 'swr';
-import { Alert, AlertActionCloseButton, Button, Tab, Tabs } from '@patternfly/react-core';
+import { Alert, AlertActionCloseButton, Button, Tab, Tabs, TabTitleText } from '@patternfly/react-core';
 import Split from 'react-split';
 import ProgressHeader from './progress-header';
 import { executeStageAndGetStatus, API_CONFIG, silentFetcher } from './utils';
@@ -118,6 +118,7 @@ export default function () {
   const [iframeModule, setIframeModule] = useState(progress.current);
   const currIndex = modules.findIndex((m) => m.name === progress.current);
   const initialFile = `./${antoraDir}/${s_name ? s_name + '/' : ''}${version ? version + '/' : ''}${iframeModule}.html`;
+  const showTabsBar = tabs.length > 1 || tabs.some((t) => t.secondary_name);
 
   useEffect(() => {
     if (session?.sessionUuid && PROGRESS_KEY) {
@@ -310,10 +311,10 @@ export default function () {
           </div>
           {tabs.length > 0 ? (
             <div className="split right">
-              {tabs.length > 1 ? (
+              {showTabsBar ? (
                 <Tabs activeKey={currentTabName} onSelect={handleTabClick} style={{ height: '56px' }}>
                   {tabs.map((s) => (
-                    <Tab eventKey={s.name} title={s.name} className="tablinks"></Tab>
+                    <Tab eventKey={s.name} title={<TabTitleText>s.name</TabTitleText>} className="tablinks"></Tab>
                   ))}
                 </Tabs>
               ) : null}
@@ -324,6 +325,11 @@ export default function () {
                       <div className="split top">
                         <iframe src={tab.url} width="100%"></iframe>
                       </div>
+                      {tab.secondary_name ? (
+                        <Tabs activeKey={currentTabName} style={{ height: '56px' }}>
+                          <Tab eventKey={tab.name} title={<TabTitleText>tab.secondary_name</TabTitleText>}></Tab>
+                        </Tabs>
+                      ) : null}
                       <div className="split bottom">
                         <iframe src={tab.secondary_url} width="100%"></iframe>
                       </div>

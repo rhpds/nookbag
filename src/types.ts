@@ -3,8 +3,9 @@ export type TTab = {
   url?: string;
   external?: boolean;
   port?: string;
-  secondary_port?: string;
   path?: string;
+  secondary_name?: string;
+  secondary_port?: string;
   secondary_path?: string;
   secondary_url?: string;
 };
