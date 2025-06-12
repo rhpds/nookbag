@@ -85,43 +85,55 @@ export default function () {
         .catch(null),
     { suspense: true }
   );
-  const { data: configData, error: errConfig } = useSWR<ModuleSteps>(API_CONFIG, silentFetcher, { suspense: true });
   const data = dataResponses.find(Boolean);
   if (!data) throw new Error();
   const config = yaml.load(data) as {
-    antora: { modules: TModule[]; name: string; dir?: string; version: string };
-    tabs: TTab[];
+    type: 'showroom' | 'zero-touch';
+    antora?: { modules: TModule[]; name: string; dir?: string; version: string };
+    tabs?: TTab[];
   };
-  if (configData) {
+  const isBasicShowroom = config.type === 'showroom';
+  const { data: configData, error: errConfig } = useSWR<ModuleSteps>(
+    !data || !isBasicShowroom ? API_CONFIG : null,
+    silentFetcher,
+    { suspense: true }
+  );
+  const modules = config?.antora?.modules || [];
+  const antoraDir = config?.antora?.dir || isBasicShowroom ? 'www' : 'antora';
+  const version = config?.antora?.version;
+  const s_name = config?.antora?.name || 'modules';
+  const [validationMsg, setValidationMsg] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
+  const tabs = config.tabs?.map((s) => createUrlsFromVars(s)) || [];
+  const PROGRESS_KEY = session ? `PROGRESS-${session.sessionUuid}` : null;
+  const initProgressStr = PROGRESS_KEY ? window.localStorage.getItem(PROGRESS_KEY) : null;
+  const initProgress: TProgress = initProgressStr ? JSON.parse(initProgressStr) : null;
+  const [progress, setProgress] = useState(
+    initProgress ?? {
+      inProgress: [],
+      completed: [],
+      notStarted: modules.map((x) => x.name),
+      current: modules.length > 0 ? modules[0].name : null,
+    }
+  );
+  const [currentTabName, setCurrentTabName] = useState(tabs[0] ? tabs[0].name : undefined);
+  const [iframeModule, setIframeModule] = useState(progress.current || 'index');
+  const currIndex = modules.findIndex((m) => m.name === progress.current);
+  const initialFile = `./${antoraDir}/${s_name ? s_name + '/' : ''}${version ? version + '/' : ''}${iframeModule}.html`;
+  const showTabsBar = tabs.length > 1 || tabs.some((t) => t.secondary_name);
+
+  if (configData && modules.length > 0) {
     Object.keys(configData).forEach((k) => {
-      for (let m in Object.entries(config.antora.modules)) {
-        const module = config.antora.modules[m];
+      for (let m in Object.entries(modules)) {
+        const module = modules[m];
         if (module.name === k) {
           module.scripts = configData[k];
         }
       }
     });
   }
-  const modules = config.antora.modules;
-  const antoraDir = config.antora.dir || 'antora';
-  const version = config.antora.version;
-  const s_name = config.antora.name;
-  const [validationMsg, setValidationMsg] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
-  const tabs = config.tabs.map((s) => createUrlsFromVars(s));
-  const PROGRESS_KEY = session ? `PROGRESS-${session.sessionUuid}` : null;
-  const initProgressStr = PROGRESS_KEY ? window.localStorage.getItem(PROGRESS_KEY) : null;
-  const initProgress: TProgress = initProgressStr ? JSON.parse(initProgressStr) : null;
-  const [progress, setProgress] = useState(
-    initProgress ?? { inProgress: [], completed: [], notStarted: modules.map((x) => x.name), current: modules[0].name }
-  );
-  const [currentTabName, setCurrentTabName] = useState(tabs[0] ? tabs[0].name : undefined);
-  const [iframeModule, setIframeModule] = useState(progress.current);
-  const currIndex = modules.findIndex((m) => m.name === progress.current);
-  const initialFile = `./${antoraDir}/${s_name ? s_name + '/' : ''}${version ? version + '/' : ''}${iframeModule}.html`;
-  const showTabsBar = tabs.length > 1 || tabs.some((t) => t.secondary_name);
 
   useEffect(() => {
-    if (session?.sessionUuid && PROGRESS_KEY) {
+    if (!isBasicShowroom && session?.sessionUuid && PROGRESS_KEY) {
       window.localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
     }
   }, [progress]);
@@ -262,15 +274,17 @@ export default function () {
           style={{ display: 'flex', flexDirection: 'row' }}
         >
           <div className="split left" ref={instructionsPanelRef}>
-            <div className="app__toolbar">
-              <ProgressHeader
-                sessionUuid={session?.sessionUuid}
-                modules={modules}
-                progress={progress}
-                expirationTime={Date.parse(session?.lifespanEnd)}
-                setIframeModule={setIframeModule}
-              />
-            </div>
+            {!isBasicShowroom ? (
+              <div className="app__toolbar">
+                <ProgressHeader
+                  sessionUuid={session?.sessionUuid}
+                  modules={modules}
+                  progress={progress}
+                  expirationTime={Date.parse(session?.lifespanEnd)}
+                  setIframeModule={setIframeModule}
+                />
+              </div>
+            ) : null}
             <iframe
               ref={ref}
               src={initialFile}
@@ -279,26 +293,28 @@ export default function () {
               className="app__instructions"
               height="100%"
             ></iframe>
-            <div className="app-iframe__inner">
-              {currIndex > 0 ? (
-                <Button onClick={handlePrevious} className="lab-actions__previous">
-                  Previous
+            {!isBasicShowroom ? (
+              <div className="app-iframe__inner">
+                {currIndex > 0 ? (
+                  <Button onClick={handlePrevious} className="lab-actions__previous">
+                    Previous
+                  </Button>
+                ) : null}
+                {showSolveBtn(modules[currIndex]) ? (
+                  <Button
+                    style={{ marginLeft: 'auto' }}
+                    variant="secondary"
+                    className="lab-actions__solve"
+                    onClick={executeSolve}
+                  >
+                    Solve
+                  </Button>
+                ) : null}
+                <Button style={{ marginLeft: 'auto' }} className="lab-actions__next" onClick={handleNext}>
+                  {currIndex + 1 < modules.length ? 'Next' : 'End'}
                 </Button>
-              ) : null}
-              {showSolveBtn(modules[currIndex]) ? (
-                <Button
-                  style={{ marginLeft: 'auto' }}
-                  variant="secondary"
-                  className="lab-actions__solve"
-                  onClick={executeSolve}
-                >
-                  Solve
-                </Button>
-              ) : null}
-              <Button style={{ marginLeft: 'auto' }} className="lab-actions__next" onClick={handleNext}>
-                {currIndex + 1 < modules.length ? 'Next' : 'End'}
-              </Button>
-            </div>
+              </div>
+            ) : null}
             {validationMsg ? (
               <Alert
                 variant={validationMsg.type === 'error' ? 'danger' : 'success'}
