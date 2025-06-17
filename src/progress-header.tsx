@@ -4,6 +4,7 @@ import ProgressBar from './progress-bar';
 import RemainingTime from './remaining-time';
 import { CheckIcon } from '@patternfly/react-icons';
 import { TModule } from './types';
+import { exitLab, restartLab } from './utils';
 
 import './progress-header.css';
 
@@ -28,14 +29,14 @@ export default function ({
     setIsModalOpen(!isModalOpen);
   }
   function handleModalRestartToggle() {
-    window.parent.postMessage('RESTART', '*');
+    restartLab();
   }
   function handleGoTo(m: string) {
     setIframeModule(m);
     handleModalToggle();
   }
   function handleModalStopToggle() {
-    window.parent.postMessage('STOP_EXIT', '*');
+    exitLab();
   }
 
   return (
