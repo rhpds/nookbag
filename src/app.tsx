@@ -14,12 +14,13 @@ import {
   TabTitleText,
 } from '@patternfly/react-core';
 import Split from 'react-split';
+import { ForwardIcon } from '@patternfly/react-icons';
 import ProgressHeader from './progress-header';
 import { executeStageAndGetStatus, API_CONFIG, silentFetcher, exitLab, completeLab } from './utils';
 import Loading from './loading';
 import { ModuleSteps, Step, TModule, TProgress, TTab } from './types';
+
 import './app.css';
-import { ForwardIcon } from '@patternfly/react-icons';
 
 const protocol = window.location.protocol;
 const hostname = window.location.hostname;
