@@ -191,3 +191,20 @@ iframe {
 .app-wrapper__restart-btn {
   margin-top: 32px;
 }
+.app-split-right__top-bar {
+  height: 56px;
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+.app-split-right__tabs {
+  height: 100%;
+}
+.app-split-right__actions {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  margin-right: 24px;
+}

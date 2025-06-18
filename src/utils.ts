@@ -60,3 +60,12 @@ export const silentFetcher = async (url: string) => {
     return null;
   }
 };
+export function exitLab() {
+  window.parent.postMessage('STOP_EXIT', '*');
+}
+export function restartLab() {
+  window.parent.postMessage('RESTART', '*');
+}
+export function completeLab() {
+  window.parent.postMessage('COMPLETED', '*');
+}

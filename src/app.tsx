@@ -2,12 +2,24 @@ import React, { useState, useRef, useEffect } from 'react';
 import yaml from 'js-yaml';
 import fetch from 'unfetch';
 import useSWR from 'swr';
-import { Alert, AlertActionCloseButton, Button, Tab, Tabs, TabTitleText } from '@patternfly/react-core';
+import {
+  Alert,
+  AlertActionCloseButton,
+  Button,
+  Modal,
+  ModalBody,
+  ModalFooter,
+  Tab,
+  Tabs,
+  TabTitleText,
+} from '@patternfly/react-core';
 import Split from 'react-split';
+import { ForwardIcon } from '@patternfly/react-icons';
 import ProgressHeader from './progress-header';
-import { executeStageAndGetStatus, API_CONFIG, silentFetcher } from './utils';
+import { executeStageAndGetStatus, API_CONFIG, silentFetcher, exitLab, completeLab } from './utils';
 import Loading from './loading';
 import { ModuleSteps, Step, TModule, TProgress, TTab } from './types';
+
 import './app.css';
 
 const protocol = window.location.protocol;
@@ -88,7 +100,7 @@ export default function () {
   const data = dataResponses.find(Boolean);
   if (!data) throw new Error();
   const config = yaml.load(data) as {
-    type: 'showroom' | 'zero-touch';
+    type?: 'showroom' | 'zero-touch';
     antora?: { modules: TModule[]; name: string; dir?: string; version: string };
     tabs?: TTab[];
   };
@@ -102,7 +114,11 @@ export default function () {
   const antoraDir = config?.antora?.dir || isBasicShowroom ? 'www' : 'antora';
   const version = config?.antora?.version;
   const s_name = config?.antora?.name || 'modules';
-  const [validationMsg, setValidationMsg] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
+  const [validationMsg, setValidationMsg] = useState<{
+    type: 'warning' | 'danger' | 'success';
+    message: string;
+    title: string;
+  } | null>(null);
   const tabs = config.tabs?.map((s) => createUrlsFromVars(s)) || [];
   const PROGRESS_KEY = session ? `PROGRESS-${session.sessionUuid}` : null;
   const initProgressStr = PROGRESS_KEY ? window.localStorage.getItem(PROGRESS_KEY) : null;
@@ -119,7 +135,7 @@ export default function () {
   const [iframeModule, setIframeModule] = useState(progress.current || 'index');
   const currIndex = modules.findIndex((m) => m.name === progress.current);
   const initialFile = `./${antoraDir}/${s_name ? s_name + '/' : ''}${version ? version + '/' : ''}${iframeModule}.html`;
-  const showTabsBar = tabs.length > 1 || tabs.some((t) => t.secondary_name);
+  const showTabsBar = (tabs.length > 1 || tabs.some((t) => t.secondary_name)) && modules.length > 0;
 
   if (configData && modules.length > 0) {
     Object.keys(configData).forEach((k) => {
@@ -222,12 +238,16 @@ export default function () {
         goToTop();
       } else {
         setLoaderStatus({ isLoading: false, stage: null });
-        setValidationMsg({ message: 'Lab completed!', type: 'success' });
-        window.parent.postMessage('COMPLETED', '*');
+        setValidationMsg({
+          title: 'Lab completed!',
+          message: "You've successfully completed this lab. You can now close this tab or return to your dashboard.",
+          type: 'success',
+        });
+        completeLab();
       }
     } else {
       setLoaderStatus({ isLoading: false, stage: null });
-      setValidationMsg({ message: res.Output || '', type: 'error' });
+      setValidationMsg({ message: res.Output || '', title: 'Validation Error', type: 'danger' });
     }
   }
 
@@ -241,9 +261,23 @@ export default function () {
         setLoaderStatus({ isLoading: false, stage: null });
       } else {
         setLoaderStatus({ isLoading: false, stage: null });
-        setValidationMsg({ message: res.Output || '', type: 'error' });
+        setValidationMsg({ message: res.Output || '', title: 'Validation Error', type: 'danger' });
       }
     }
+  }
+
+  async function skipModule() {
+    await executeSolve();
+    await handleNext();
+  }
+
+  function exit() {
+    setValidationMsg({
+      title: 'Are you sure you want to leave?',
+      message: 'If you wish to exit, simply close this browser tab.',
+      type: 'warning',
+    });
+    exitLab();
   }
 
   if (error) {
@@ -264,6 +298,20 @@ export default function () {
         }
         isVisible={loaderStatus.isLoading}
       />
+      <Modal isOpen={!!validationMsg} onClose={() => setValidationMsg(null)} variant="small">
+        <ModalBody>
+          {validationMsg ? (
+            <Alert variant={validationMsg.type} title={validationMsg.title} isPlain isInline>
+              {validationMsg.message}
+            </Alert>
+          ) : null}
+        </ModalBody>
+        <ModalFooter>
+          <Button key="confirm" variant="primary" onClick={() => setValidationMsg(null)}>
+            Confirm
+          </Button>
+        </ModalFooter>
+      </Modal>
       <div className="app-wrapper">
         <Split
           sizes={tabs.length > 0 ? [25, 75] : [100]}
@@ -315,24 +363,25 @@ export default function () {
                 </Button>
               </div>
             ) : null}
-            {validationMsg ? (
-              <Alert
-                variant={validationMsg.type === 'error' ? 'danger' : 'success'}
-                title={validationMsg.type === 'error' ? 'Validation Error' : 'Lab Completed'}
-                actionClose={<AlertActionCloseButton onClose={() => setValidationMsg(null)} />}
-              >
-                {validationMsg.message}
-              </Alert>
-            ) : null}
           </div>
           {tabs.length > 0 ? (
             <div className="split right">
               {showTabsBar ? (
-                <Tabs activeKey={currentTabName} onSelect={handleTabClick} style={{ height: '56px' }}>
-                  {tabs.map((s) => (
-                    <Tab eventKey={s.name} title={<TabTitleText>{s.name}</TabTitleText>} className="tablinks"></Tab>
-                  ))}
-                </Tabs>
+                <div className="app-split-right__top-bar">
+                  <Tabs activeKey={currentTabName} onSelect={handleTabClick} className="app-split-right__tabs">
+                    {tabs.map((s) => (
+                      <Tab eventKey={s.name} title={<TabTitleText>{s.name}</TabTitleText>} className="tablinks"></Tab>
+                    ))}
+                  </Tabs>
+                  <div className="app-split-right__actions">
+                    <Button key="skip-module" variant="secondary" size="sm" onClick={skipModule} icon={<ForwardIcon />}>
+                      Skip module
+                    </Button>
+                    <Button key="exit-lab" variant="primary" size="sm" onClick={exit}>
+                      Exit
+                    </Button>
+                  </div>
+                </div>
               ) : null}
               {tabs.map((tab) => (
                 <div className={`tabcontent${tab.name === currentTabName ? ' active' : ''}`}>
