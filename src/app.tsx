@@ -2,17 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import yaml from 'js-yaml';
 import fetch from 'unfetch';
 import useSWR from 'swr';
-import {
-  Alert,
-  AlertActionCloseButton,
-  Button,
-  Modal,
-  ModalBody,
-  ModalFooter,
-  Tab,
-  Tabs,
-  TabTitleText,
-} from '@patternfly/react-core';
+import { Alert, Button, Modal, ModalBody, ModalFooter, Tab, Tabs, TabTitleText } from '@patternfly/react-core';
 import Split from 'react-split';
 import { ForwardIcon } from '@patternfly/react-icons';
 import ProgressHeader from './progress-header';
@@ -131,11 +121,26 @@ export default function () {
       current: modules.length > 0 ? modules[0].name : null,
     }
   );
-  const [currentTabName, setCurrentTabName] = useState(tabs[0] ? tabs[0].name : undefined);
   const [iframeModule, setIframeModule] = useState(progress.current || 'index');
   const currIndex = modules.findIndex((m) => m.name === progress.current);
+  const [currentTabName, setCurrentTabName] = useState(
+    Array.isArray(tabs) && tabs.length > 0
+      ? tabs.find((t) => !t.modules || t.modules.includes(modules[currIndex].name))?.name
+      : undefined
+  );
   const initialFile = `./${antoraDir}/${s_name ? s_name + '/' : ''}${version ? version + '/' : ''}${iframeModule}.html`;
-  const showTabsBar = (tabs.length > 1 || tabs.some((t) => t.secondary_name)) && modules.length > 0;
+  const showTabsBar =
+    (tabs.length > 1 || tabs.some((t) => t.secondary_name)) && (isBasicShowroom || modules.length > 0);
+  const moduleTabs = tabs.filter((t) => {
+    if (!t.modules) return true;
+    if (Array.isArray(t.modules) && t.modules.length > 0) {
+      if (t.modules.includes(modules[currIndex].name)) {
+        return true;
+      }
+      return false;
+    }
+    return true;
+  });
 
   if (configData && modules.length > 0) {
     Object.keys(configData).forEach((k) => {
@@ -215,9 +220,19 @@ export default function () {
     }
   }
 
+  function setDefaultTabFor(module: TModule) {
+    const currentTab = tabs.find((t) => t.name === currentTabName);
+    if (Array.isArray(currentTab?.modules) && currentTab.modules.length > 0) {
+      if (!currentTab.modules.includes(module.name)) {
+        setCurrentTabName(tabs.find((t) => !t.modules || t.modules.includes(module.name))?.name);
+      }
+    }
+  }
+
   function handlePrevious() {
     if (currIndex > 0) {
       setValidationMsg(null);
+      setDefaultTabFor(modules[currIndex - 1]);
       setIframeModule(modules[currIndex - 1].name);
       goToTop();
     }
@@ -234,6 +249,7 @@ export default function () {
     }
     if (res === null || res.Status === 'successful') {
       if (currIndex + 1 < modules.length) {
+        setDefaultTabFor(modules[currIndex + 1]);
         setIframeModule(modules[currIndex + 1].name);
         goToTop();
       } else {
@@ -314,7 +330,7 @@ export default function () {
       </Modal>
       <div className="app-wrapper">
         <Split
-          sizes={tabs.length > 0 ? [25, 75] : [100]}
+          sizes={moduleTabs.length > 0 ? [25, 75] : [100]}
           minSize={100}
           gutterSize={1}
           direction="horizontal"
@@ -364,12 +380,12 @@ export default function () {
               </div>
             ) : null}
           </div>
-          {tabs.length > 0 ? (
+          {moduleTabs.length > 0 ? (
             <div className="split right">
               {showTabsBar ? (
                 <div className="app-split-right__top-bar">
                   <Tabs activeKey={currentTabName} onSelect={handleTabClick} className="app-split-right__tabs">
-                    {tabs.map((s) => (
+                    {moduleTabs.map((s) => (
                       <Tab eventKey={s.name} title={<TabTitleText>{s.name}</TabTitleText>} className="tablinks"></Tab>
                     ))}
                   </Tabs>
@@ -383,7 +399,7 @@ export default function () {
                   </div>
                 </div>
               ) : null}
-              {tabs.map((tab) => (
+              {moduleTabs.map((tab) => (
                 <div className={`tabcontent${tab.name === currentTabName ? ' active' : ''}`}>
                   {tab.secondary_url ? (
                     <>

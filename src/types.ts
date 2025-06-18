@@ -8,6 +8,7 @@ export type TTab = {
   secondary_port?: string;
   secondary_path?: string;
   secondary_url?: string;
+  modules?: string[];
 };
 export type TProgress = {
   inProgress: any[];
