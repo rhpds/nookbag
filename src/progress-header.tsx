@@ -13,14 +13,12 @@ export default function ({
   modules,
   progress,
   expirationTime,
-  className,
   setIframeModule,
 }: {
   sessionUuid: string;
   modules: TModule[];
   progress: { current: string; inProgress: string[]; notStarted: string[]; completed: string[] };
   expirationTime: number;
-  className?: string;
   setIframeModule: Dispatch<SetStateAction<string>>;
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);

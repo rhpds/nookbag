@@ -404,7 +404,7 @@ export default function () {
                   {tab.secondary_url ? (
                     <>
                       <div className="split top">
-                        <iframe src={tab.url} width="100%"></iframe>
+                        <iframe src={tab.url} width="100%" id="main-content"></iframe>
                       </div>
                       {tab.secondary_name ? (
                         <Tabs activeKey={currentTabName} style={{ height: '56px' }}>
@@ -417,6 +417,7 @@ export default function () {
                     </>
                   ) : tab.name === currentTabName || tab.path === '/wetty' || tab.path?.startsWith('/tty') ? (
                     <iframe
+                      id="main-content"
                       src={tab.url}
                       height="100%"
                       width="100%"
