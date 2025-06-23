@@ -400,7 +400,7 @@ export default function () {
                 </div>
               ) : null}
               {moduleTabs.map((tab) => (
-                <div className={`tabcontent${tab.name === currentTabName ? ' active' : ''}`}>
+                  <div key={tab.name} className={`tabcontent${tab.name === currentTabName ? ' active' : ''}`} style={{ display: tab.name === currentTabName ? 'block' : 'none', height: '100%' }}>
                   {tab.secondary_url ? (
                     <>
                       <div className="split top">
