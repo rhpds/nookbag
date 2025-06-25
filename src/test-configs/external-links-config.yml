@@ -1,0 +1,20 @@
+type: zero-touch
+tabs:
+  - name: Documentation
+    url: 'https://docs.redhat.com'
+    external: true
+  - name: GitHub Repository
+    url: 'https://github.com/redhat/example-repo'
+    external: true
+  - name: Local Application
+    port: '3000'
+    path: '/app'
+    external: false
+antora:
+  modules:
+    - name: documentation-review
+      label: Documentation Review
+    - name: code-examples
+      label: Code Examples
+  name: modules
+  version: '1.0'

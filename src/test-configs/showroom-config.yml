@@ -1,0 +1,11 @@
+type: showroom
+tabs:
+  - name: 'Documentation'
+    url: 'https://docs.example.com'
+    external: true
+  - name: 'Local Application'
+    port: 3000
+    path: '/app'
+  - name: 'Code Editor'
+    port: 3001
+    path: '/editor'

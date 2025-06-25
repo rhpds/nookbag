@@ -2,7 +2,13 @@
   "scripts": {
     "build": "vite build",
     "build-antora": "antora generate site.yaml",
-    "build-antora-dev": "antora dev-site.yaml"
+    "build-antora-dev": "antora dev-site.yaml",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
+    "test:debug": "vitest --ui --open",
+    "test:watch": "vitest --watch"
   },
   "devDependencies": {
     "@antora/cli": "3.1.4",
@@ -10,7 +16,13 @@
     "@types/js-yaml": "^4.0.5",
     "@types/react": "^18.2.15",
     "@types/react-dom": "^18.2.7",
-    "typescript": "^5.1.6"
+    "typescript": "^5.1.6",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/jest-dom": "^6.1.4",
+    "@testing-library/user-event": "^14.4.3",
+    "vitest": "^0.34.0",
+    "@vitest/ui": "^0.34.0",
+    "jsdom": "^22.1.0"
   },
   "dependencies": {
     "@patternfly/react-core": "^6.0.0",
