@@ -1,0 +1,27 @@
+type: zero-touch
+tabs:
+  - name: Embedded Dashboard
+    url: 'https://grafana.example.com/dashboard'
+    external: false
+  - name: Split View Console
+    port: '8080'
+    path: '/console'
+    secondary_name: 'Logs'
+    secondary_port: '8081'
+    secondary_path: '/logs'
+    external: false
+  - name: IDE
+    port: '3001'
+    path: '/ide'
+    external: false
+  - name: External Monitoring
+    url: 'https://monitoring.example.com'
+    external: true
+antora:
+  modules:
+    - name: dashboard-setup
+      label: Dashboard Setup
+    - name: monitoring-config
+      label: Monitoring Configuration
+  name: modules
+  version: '1.0'

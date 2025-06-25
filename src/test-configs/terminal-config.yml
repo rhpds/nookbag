@@ -1,0 +1,19 @@
+type: zero-touch
+tabs:
+  - name: Terminal
+    port: '8080'
+    path: '/wetty'
+  - name: Application
+    port: '3000'
+    path: '/app'
+  - name: Database Terminal
+    port: '5432'
+    path: '/tty'
+antora:
+  modules:
+    - name: getting-started
+      label: Getting Started with Terminal
+    - name: advanced-commands
+      label: Advanced Commands
+  name: modules
+  version: '1.0'

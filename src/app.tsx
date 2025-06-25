@@ -389,14 +389,22 @@ export default function () {
                       <Tab eventKey={s.name} title={<TabTitleText>{s.name}</TabTitleText>} className="tablinks"></Tab>
                     ))}
                   </Tabs>
-                  <div className="app-split-right__actions">
-                    <Button key="skip-module" variant="secondary" size="sm" onClick={skipModule} icon={<ForwardIcon />}>
-                      Skip module
-                    </Button>
-                    <Button key="exit-lab" variant="primary" size="sm" onClick={exit}>
-                      Exit
-                    </Button>
-                  </div>
+                  {!isBasicShowroom ? (
+                    <div className="app-split-right__actions">
+                      <Button
+                        key="skip-module"
+                        variant="secondary"
+                        size="sm"
+                        onClick={skipModule}
+                        icon={<ForwardIcon />}
+                      >
+                        Skip module
+                      </Button>
+                      <Button key="exit-lab" variant="primary" size="sm" onClick={exit}>
+                        Exit
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
               {moduleTabs.map((tab) => (

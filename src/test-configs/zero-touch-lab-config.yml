@@ -1,0 +1,37 @@
+type: zero-touch
+tabs:
+  - name: Terminal
+    port: '8080'
+    path: '/wetty'
+  - name: Code Editor
+    port: '3001'
+    path: '/vscode'
+  - name: Database Console
+    port: '5432'
+    path: '/pgadmin'
+  - name: Application Preview
+    port: '3000'
+    path: '/preview'
+  - name: External Docs
+    url: 'https://docs.example.com/lab-guide'
+    external: true
+antora:
+  modules:
+    - name: lab-setup
+      label: Lab Environment Setup
+      scripts: ['setup', 'validation']
+      solveButton: true
+    - name: database-connection
+      label: Database Connection
+      scripts: ['setup', 'validation', 'solve']
+      solveButton: true
+    - name: application-deployment
+      label: Application Deployment
+      scripts: ['setup', 'validation', 'solve']
+      solveButton: true
+    - name: testing-verification
+      label: Testing and Verification
+      scripts: ['validation']
+      solveButton: false
+  name: modules
+  version: '1.0'
