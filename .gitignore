@@ -3,3 +3,9 @@ node_modules
 dist
 lab
 lab2
+
+# Coverage reports
+coverage
+coverage/
+*.lcov
+.nyc_output
