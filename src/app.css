@@ -198,6 +198,7 @@ iframe {
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
+  border-bottom: 1px solid #6a6e73;
 }
 .app-split-right__tabs {
   height: 100%;
@@ -207,4 +208,7 @@ iframe {
   flex-direction: row;
   gap: 12px;
   margin-right: 24px;
+}
+.app-split-right__tabs::before {
+  border: 0;
 }
