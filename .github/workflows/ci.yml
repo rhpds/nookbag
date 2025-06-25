@@ -24,11 +24,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: TypeScript check
-        run: npx tsc --noEmit
-
       - name: Run tests
         run: npm run test:run
+
+      - name: Build application
+        run: npm run build
 
       - name: Generate test coverage
         run: npm run test:coverage
@@ -57,3 +57,6 @@ jobs:
 
       - name: Run tests
         run: npm run test:run
+
+      - name: Build application
+        run: npm run build
