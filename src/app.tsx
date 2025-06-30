@@ -240,7 +240,7 @@ export default function () {
 
   async function handleNext() {
     setValidationMsg(null);
-    let res: { Status: 'error' | 'successful'; Output?: string } | null = null;
+    let res: { Status: 'failed' | 'successful'; Output?: string } | null = null;
     if (isScriptAvailable(modules[currIndex], 'validation')) {
       setLoaderStatus({ isLoading: true, stage: 'validation' });
       const executeStageAndGetStatusPromise = executeStageAndGetStatus(modules[currIndex].name, 'validation');
