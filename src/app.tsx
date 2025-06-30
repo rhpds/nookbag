@@ -2,9 +2,19 @@ import React, { useState, useRef, useEffect } from 'react';
 import yaml from 'js-yaml';
 import fetch from 'unfetch';
 import useSWR from 'swr';
-import { Alert, Button, Modal, ModalBody, ModalFooter, Tab, Tabs, TabTitleText } from '@patternfly/react-core';
+import {
+  Alert,
+  Button,
+  Modal,
+  ModalBody,
+  ModalFooter,
+  Tab,
+  Tabs,
+  TabTitleIcon,
+  TabTitleText,
+} from '@patternfly/react-core';
 import Split from 'react-split';
-import { ForwardIcon } from '@patternfly/react-icons';
+import { ForwardIcon, RedoIcon } from '@patternfly/react-icons';
 import ProgressHeader from './progress-header';
 import { executeStageAndGetStatus, API_CONFIG, silentFetcher, exitLab, completeLab } from './utils';
 import Loading from './loading';
@@ -296,6 +306,13 @@ export default function () {
     exitLab();
   }
 
+  function refreshTab(url: string) {
+    const tab = document.querySelector(`.app-split-right__content.active iframe`);
+    if (tab) {
+      (tab as HTMLIFrameElement).src = url;
+    }
+  }
+
   if (error) {
     return <div>Configuration file not defined</div>;
   }
@@ -386,7 +403,20 @@ export default function () {
                 <div className="app-split-right__top-bar">
                   <Tabs activeKey={currentTabName} onSelect={handleTabClick} className="app-split-right__tabs">
                     {moduleTabs.map((s) => (
-                      <Tab eventKey={s.name} title={<TabTitleText>{s.name}</TabTitleText>} className="tablinks"></Tab>
+                      <Tab
+                        eventKey={s.name}
+                        title={
+                          <>
+                            <TabTitleText>{s.name}</TabTitleText>{' '}
+                            {s.name === currentTabName && !s.secondary_url ? (
+                              <TabTitleIcon onClick={() => refreshTab(s.url as string)}>
+                                <RedoIcon color="grey" />
+                              </TabTitleIcon>
+                            ) : null}
+                          </>
+                        }
+                        className="tablinks"
+                      ></Tab>
                     ))}
                   </Tabs>
                   {!isBasicShowroom ? (
@@ -408,7 +438,7 @@ export default function () {
                 </div>
               ) : null}
               {moduleTabs.map((tab) => (
-                <div className={`tabcontent${tab.name === currentTabName ? ' active' : ''}`}>
+                <div className={`app-split-right__content tabcontent${tab.name === currentTabName ? ' active' : ''}`}>
                   {tab.secondary_url ? (
                     <>
                       <div className="split top">
