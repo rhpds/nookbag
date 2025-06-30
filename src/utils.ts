@@ -2,7 +2,7 @@ import fetch from 'unfetch';
 import { Step } from './types';
 
 const API_PATH = '/runner/api';
-export async function getJobStatus(jobId: string): Promise<{ Status: 'successful' | 'error'; Output?: string }> {
+export async function getJobStatus(jobId: string): Promise<{ Status: 'successful' | 'failed'; Output?: string }> {
   async function jobStatusFn() {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     return getJobStatus(jobId);
@@ -19,7 +19,7 @@ export async function getJobStatus(jobId: string): Promise<{ Status: 'successful
     }
   }
   return Promise.resolve({
-    Status: 'error',
+    Status: 'failed',
   });
 }
 
@@ -35,7 +35,7 @@ export async function executeStage(moduleName: string, stage: Step): Promise<str
 export async function executeStageAndGetStatus(
   moduleName: string,
   stage: Step
-): Promise<{ Status: 'error' | 'successful'; Output?: string }> {
+): Promise<{ Status: 'failed' | 'successful'; Output?: string }> {
   const jobId = await executeStage(moduleName, stage);
   if (jobId) {
     return await getJobStatus(jobId);
