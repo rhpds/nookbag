@@ -26,15 +26,9 @@ export default function ({
   function handleModalToggle() {
     setIsModalOpen(!isModalOpen);
   }
-  function handleModalRestartToggle() {
-    restartLab();
-  }
   function handleGoTo(m: string) {
     setIframeModule(m);
     handleModalToggle();
-  }
-  function handleModalStopToggle() {
-    exitLab();
   }
 
   return (
@@ -81,14 +75,14 @@ export default function ({
             Close
           </Button>
           {sessionUuid ? (
-            <Button key="restart" variant="secondary" onClick={handleModalRestartToggle}>
+            <Button key="restart" variant="secondary" onClick={restartLab}>
               Restart
             </Button>
           ) : null}
         </ModalFooter>
       </Modal>
       {sessionUuid ? (
-        <Button key="stop" variant="secondary" size="sm" onClick={handleModalStopToggle}>
+        <Button key="stop" variant="secondary" size="sm" onClick={exitLab}>
           Exit
         </Button>
       ) : null}

@@ -264,12 +264,15 @@ export default function () {
         goToTop();
       } else {
         setLoaderStatus({ isLoading: false, stage: null });
-        setValidationMsg({
-          title: 'Lab completed!',
-          message: "You've successfully completed this lab. You can now close this tab or return to your dashboard.",
-          type: 'success',
-        });
-        completeLab();
+        if (!session.sessionUuid) {
+          setValidationMsg({
+            title: 'Lab completed!',
+            message: "You've successfully completed this lab.",
+            type: 'success',
+          });
+        } else {
+          completeLab();
+        }
       }
     } else {
       setLoaderStatus({ isLoading: false, stage: null });
@@ -297,13 +300,16 @@ export default function () {
     await handleNext();
   }
 
-  function exit() {
-    setValidationMsg({
-      title: 'Are you sure you want to leave?',
-      message: 'If you wish to exit, simply close this browser tab.',
-      type: 'warning',
-    });
-    exitLab();
+  function exitWarning() {
+    if (!session?.sessionUuid) {
+      setValidationMsg({
+        title: 'Are you sure you want to leave?',
+        message: 'If you wish to exit, simply close this browser tab.',
+        type: 'warning',
+      });
+    } else {
+      exitLab();
+    }
   }
 
   function refreshTab(url: string) {
@@ -430,7 +436,7 @@ export default function () {
                       >
                         Skip module
                       </Button>
-                      <Button key="exit-lab" variant="primary" size="sm" onClick={exit}>
+                      <Button key="exit-lab" variant="primary" size="sm" onClick={exitWarning}>
                         Exit
                       </Button>
                     </div>

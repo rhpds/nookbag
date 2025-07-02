@@ -61,7 +61,7 @@ export const silentFetcher = async (url: string) => {
   }
 };
 export function exitLab() {
-  window.parent.postMessage('STOP_EXIT', '*');
+  window.parent.postMessage('DELETE', '*');
 }
 export function restartLab() {
   window.parent.postMessage('RESTART', '*');
