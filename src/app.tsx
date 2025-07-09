@@ -358,7 +358,16 @@ export default function () {
           gutterSize={1}
           direction="horizontal"
           cursor="col-resize"
-          style={{ display: 'flex', flexDirection: 'row' }}
+          style={{ display: 'flex', flexDirection: 'row', resize: 'horizontal', height: '100%' }}
+          onDragEnd={() => {
+            // Hack to fix scrollbar issue https://github.com/nathancahill/split/issues/119
+            document.querySelectorAll('iframe').forEach((iframe) => {
+              iframe.style.display = 'none';
+              requestAnimationFrame(() => {
+                iframe.style.display = 'block';
+              });
+            });
+          }}
         >
           <div className="split left" ref={instructionsPanelRef}>
             {!isBasicShowroom ? (
