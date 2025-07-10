@@ -26,6 +26,30 @@ const protocol = window.location.protocol;
 const hostname = window.location.hostname;
 
 const createUrlsFromVars = (vars: TTab): TTab => {
+  // Handle predefined types
+  if (vars.type) {
+    let updatedVars = { ...vars };
+
+    switch (vars.type) {
+      case 'double-terminal':
+        updatedVars.path = '/tty-top';
+        updatedVars.port = '443';
+        updatedVars.secondary_path = '/tty-bottom';
+        updatedVars.secondary_port = '443';
+        break;
+      case 'terminal':
+        updatedVars.path = '/tty1';
+        updatedVars.port = '443';
+        break;
+      case 'secondary-terminal':
+        updatedVars.path = '/tty2';
+        updatedVars.port = '443';
+        break;
+    }
+
+    vars = updatedVars;
+  }
+
   if (vars.url) {
     return {
       ...vars,

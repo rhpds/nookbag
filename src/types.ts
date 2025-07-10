@@ -9,6 +9,7 @@ export type TTab = {
   secondary_path?: string;
   secondary_url?: string;
   modules?: string[];
+  type?: 'double-terminal' | 'terminal' | 'secondary-terminal' | 'codeserver' | 'parasol';
 };
 export type TProgress = {
   inProgress: any[];
