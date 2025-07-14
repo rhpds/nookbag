@@ -46,8 +46,8 @@ const createUrlsFromVars = (vars: TTab): TTab => {
         updatedVars.port = '443';
         break;
       case 'codeserver':
-        updatedVars.path = '/codeserver';
-        updatedVars.port = '443';
+        updatedVars.path = '/';
+        updatedVars.port = '8443';
         break;
       case 'parasol':
         updatedVars.path = '/';
