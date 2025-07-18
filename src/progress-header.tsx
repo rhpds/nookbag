@@ -81,11 +81,6 @@ export default function ({
           ) : null}
         </ModalFooter>
       </Modal>
-      {sessionUuid ? (
-        <Button key="stop" variant="secondary" size="sm" onClick={exitLab}>
-          Exit
-        </Button>
-      ) : null}
     </>
   );
 }
