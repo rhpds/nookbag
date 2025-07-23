@@ -487,19 +487,31 @@ export default function () {
               {moduleTabs.map((tab) => (
                 <div className={`app-split-right__content tabcontent${tab.name === currentTabName ? ' active' : ''}`}>
                   {tab.secondary_url ? (
-                    <>
+                    <Split
+                      sizes={[50, 50]}
+                      minSize={100}
+                      gutterSize={1}
+                      cursor="row-resize"
+                      direction="vertical"
+                      style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
+                    >
                       <div className="split top">
-                        <iframe src={tab.url} width="100%" className="main-content"></iframe>
+                        <iframe src={tab.url} width="100%" height="100%" className="main-content"></iframe>
                       </div>
-                      {tab.secondary_name ? (
-                        <Tabs activeKey={currentTabName} style={{ height: '56px' }}>
-                          <Tab eventKey={tab.name} title={<TabTitleText>{tab.secondary_name}</TabTitleText>}></Tab>
-                        </Tabs>
-                      ) : null}
                       <div className="split bottom">
-                        <iframe src={tab.secondary_url} width="100%"></iframe>
+                        {tab.secondary_name ? (
+                          <Tabs activeKey={currentTabName} style={{ height: '56px' }}>
+                            <Tab eventKey={tab.name} title={<TabTitleText>{tab.secondary_name}</TabTitleText>}></Tab>
+                          </Tabs>
+                        ) : null}
+                        <iframe
+                          src={tab.secondary_url}
+                          width="100%"
+                          height="100%"
+                          style={{ display: 'block' }}
+                        ></iframe>
                       </div>
-                    </>
+                    </Split>
                   ) : (
                     <iframe
                       className="main-content"
