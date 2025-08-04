@@ -91,6 +91,11 @@ function showSolveBtn(module: TModule) {
   return isScriptAvailable(module, 'solve');
 }
 
+function isTerminalTab(tab: TTab) {
+  if (tab.type === 'terminal' || tab.type === 'secondary-terminal') return true;
+  return tab.path?.startsWith('/wetty') || tab.path?.startsWith('/tty');
+}
+
 type Session = {
   sessionUuid: string;
   catalogItemName: string;
@@ -519,9 +524,7 @@ export default function () {
                       height="100%"
                       width="100%"
                       style={{
-                        ...(tab.path === '/wetty' || tab.path?.startsWith('/tty')
-                          ? { padding: '0 32px', background: '#000' }
-                          : {}),
+                        ...(isTerminalTab(tab) ? { padding: '0 32px', background: '#000' } : {}),
                       }}
                     ></iframe>
                   )}
