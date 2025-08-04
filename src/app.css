@@ -43,17 +43,11 @@ iframe {
   flex-direction: column;
 }
 
-.split.top,
-.split.bottom {
-  flex: 1;
-}
-
 .split.bottom {
   border-top: 1px solid #6a6e73;
 }
 
 /* Style the tab */
-
 .tab {
   border-bottom: 1px solid #6a6e73;
   border-radius: 0;
@@ -134,7 +128,7 @@ iframe {
   display: flex;
   align-items: center;
 }
-.gutter:after {
+.gutter.gutter-horizontal:after {
   display: block;
   content: ' ';
   width: 17px;
@@ -143,7 +137,16 @@ iframe {
   margin-left: -9px;
   background: url('data:image/svg+xml,<svg width="17" height="35" viewBox="0 0 17 35" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class="w-[17px] absolute top-1/2 -translate-y-1/2 -left-1 text-[%2358647a] group-hover:text-[%236b7d9e]"><rect x="0.5" y="0.5" width="16" height="34" rx="7.5" fill="white" stroke="currentColor"></rect><rect x="6" y="8" width="5" height="5" rx="1" fill="currentColor" class="handle_svg__dot"></rect><rect x="6" y="15" width="5" height="5" rx="1" fill="currentColor" class="handle_svg__dot"></rect><rect x="6" y="22" width="5" height="5" rx="1" fill="currentColor" class="handle_svg__dot"></rect></svg>');
 }
-
+.gutter.gutter-vertical:after {
+  display: block;
+  content: ' ';
+  width: 35px;
+  position: absolute;
+  height: 17px;
+  margin-left: 50%;
+  left: -17px;
+  background: url('data:image/svg+xml,<svg width="35" height="17" viewBox="0 0 35 17" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class="w-[35px] absolute top-1/2 -translate-y-1/2 -left-1 text-[%2358647a] group-hover:text-[%236b7d9e]"><rect x="0.5" y="0.5" width="34" height="16" rx="7.5" fill="white" stroke="currentColor"></rect><rect x="8" y="6" width="5" height="5" rx="1" fill="currentColor" class="handle_svg__dot"></rect><rect x="15" y="6" width="5" height="5" rx="1" fill="currentColor" class="handle_svg__dot"></rect><rect x="22" y="6" width="5" height="5" rx="1" fill="currentColor" class="handle_svg__dot"></rect></svg>');
+}
 .gutter.gutter-horizontal {
   cursor: col-resize;
   height: 100%;
@@ -154,9 +157,9 @@ iframe {
 
 .gutter.gutter-vertical {
   cursor: row-resize;
-}
-.gutter.gutter-vertical {
-  background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAFAQMAAABo7865AAAABlBMVEVHcEzMzMzyAv2sAAAAAXRSTlMAQObYZgAAABBJREFUeF5jOAMEEAIEEFwAn3kMwcB6I2AAAAAASUVORK5CYII=');
+  width: 100%;
+  background-color: #ccc;
+  z-index: 2;
 }
 
 .gutter.gutter-horizontal {
@@ -167,9 +170,13 @@ iframe {
   -moz-box-sizing: border-box;
   box-sizing: border-box;
 }
-.split {
+.split.split-left, .split.split-right {
   overflow-y: auto;
   overflow-x: hidden;
+}
+.split.split-top, .split.split-bottom {
+  overflow-y: hidden;
+  overflow-x: auto;
 }
 
 .app-wrapper__inner {
