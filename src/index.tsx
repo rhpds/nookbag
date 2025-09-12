@@ -10,7 +10,11 @@ if (!container) throw new Error('Root element not found');
 const root = createRoot(container);
 root.render(
   <Suspense fallback={<div>loading...</div>}>
-    <ErrorBoundary fallbackRender={() => <div>Configuration file not defined</div>}>
+    <ErrorBoundary
+      fallbackRender={(props) => (
+        <pre style={{ whiteSpace: 'pre-wrap' }}>{props.error?.message || 'Configuration error'}</pre>
+      )}
+    >
       <App />
     </ErrorBoundary>
   </Suspense>

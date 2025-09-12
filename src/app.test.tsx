@@ -63,7 +63,10 @@ describe('UI Config Integration Tests', () => {
         // First call: configuration files fetch
         if (Array.isArray(key) && key.includes('./ui-config.yml')) {
           return {
-            data: [terminalConfig], // First call: [ui-config.yml, zero-touch-config.yml]
+            data: [
+              { url: './ui-config.yml', ok: true, status: 200, statusText: 'OK', text: terminalConfig },
+              { url: './zero-touch-config.yml', ok: false, status: 404, statusText: 'Not Found', text: null },
+            ],
             error: null,
             mutate: vi.fn(),
             isValidating: false,
@@ -129,7 +132,10 @@ describe('UI Config Integration Tests', () => {
         // First call: configuration files fetch
         if (Array.isArray(key) && key.includes('./ui-config.yml')) {
           return {
-            data: [externalLinksConfig],
+            data: [
+              { url: './ui-config.yml', ok: true, status: 200, statusText: 'OK', text: externalLinksConfig },
+              { url: './zero-touch-config.yml', ok: false, status: 404, statusText: 'Not Found', text: null },
+            ],
             error: null,
             mutate: vi.fn(),
             isValidating: false,
@@ -189,7 +195,10 @@ describe('UI Config Integration Tests', () => {
         // First call: configuration files fetch
         if (Array.isArray(key) && key.includes('./ui-config.yml')) {
           return {
-            data: [embeddedWebsiteConfig],
+            data: [
+              { url: './ui-config.yml', ok: true, status: 200, statusText: 'OK', text: embeddedWebsiteConfig },
+              { url: './zero-touch-config.yml', ok: false, status: 404, statusText: 'Not Found', text: null },
+            ],
             error: null,
             mutate: vi.fn(),
             isValidating: false,
@@ -273,7 +282,10 @@ describe('UI Config Integration Tests', () => {
         // First call: configuration files fetch (zero-touch config)
         if (Array.isArray(key) && key.includes('./ui-config.yml')) {
           return {
-            data: [null, zeroTouchConfig], // [ui-config.yml, zero-touch-config.yml]
+            data: [
+              { url: './ui-config.yml', ok: false, status: 404, statusText: 'Not Found', text: null },
+              { url: './zero-touch-config.yml', ok: true, status: 200, statusText: 'OK', text: zeroTouchConfig },
+            ],
             error: null,
             mutate: vi.fn(),
             isValidating: false,
@@ -367,7 +379,10 @@ describe('UI Config Integration Tests', () => {
         // First call: configuration files fetch (zero-touch config)
         if (Array.isArray(key) && key.includes('./ui-config.yml')) {
           return {
-            data: [null, zeroTouchConfig], // [ui-config.yml, zero-touch-config.yml]
+            data: [
+              { url: './ui-config.yml', ok: false, status: 404, statusText: 'Not Found', text: null },
+              { url: './zero-touch-config.yml', ok: true, status: 200, statusText: 'OK', text: zeroTouchConfig },
+            ],
             error: null,
             mutate: vi.fn(),
             isValidating: false,
@@ -440,7 +455,10 @@ describe('UI Config Integration Tests', () => {
         // First call: configuration files fetch (zero-touch config)
         if (Array.isArray(key) && key.includes('./ui-config.yml')) {
           return {
-            data: [null, zeroTouchConfig], // [ui-config.yml, zero-touch-config.yml]
+            data: [
+              { url: './ui-config.yml', ok: false, status: 404, statusText: 'Not Found', text: null },
+              { url: './zero-touch-config.yml', ok: true, status: 200, statusText: 'OK', text: zeroTouchConfig },
+            ],
             error: null,
             mutate: vi.fn(),
             isValidating: false,
@@ -485,7 +503,10 @@ describe('UI Config Integration Tests', () => {
         // First call: configuration files fetch
         if (Array.isArray(key) && key.includes('./ui-config.yml')) {
           return {
-            data: [embeddedWebsiteConfig],
+            data: [
+              { url: './ui-config.yml', ok: true, status: 200, statusText: 'OK', text: embeddedWebsiteConfig },
+              { url: './zero-touch-config.yml', ok: false, status: 404, statusText: 'Not Found', text: null },
+            ],
             error: null,
             mutate: vi.fn(),
             isValidating: false,
@@ -521,7 +542,10 @@ describe('UI Config Integration Tests', () => {
           // First call: configuration files fetch (showroom config)
           if (Array.isArray(key) && key.includes('./ui-config.yml')) {
             return {
-              data: [showroomConfig],
+              data: [
+                { url: './ui-config.yml', ok: true, status: 200, statusText: 'OK', text: showroomConfig },
+                { url: './zero-touch-config.yml', ok: false, status: 404, statusText: 'Not Found', text: null },
+              ],
               error: null,
               mutate: vi.fn(),
               isValidating: false,
