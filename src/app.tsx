@@ -22,6 +22,15 @@ import { ModuleSteps, Step, TModule, TProgress, TTab } from './types';
 
 import './app.css';
 
+type ConfigFetchResult = {
+  url: string;
+  ok: boolean;
+  status: number;
+  statusText: string;
+  text: string | null;
+  error?: string;
+};
+
 const protocol = window.location.protocol;
 const hostname = window.location.hostname;
 
@@ -125,7 +134,7 @@ export default function () {
   const { data: dataResponses, error } = useSWR(
     ['./ui-config.yml', './zero-touch-config.yml'],
     async (urls: string[]) => {
-      const results = await Promise.all(
+      const results: ConfigFetchResult[] = await Promise.all(
         urls.map(async (url) => {
           try {
             const response = await fetch(url);
@@ -148,22 +157,14 @@ export default function () {
   if (!Array.isArray(dataResponses)) {
     throw new Error('Failed to load configuration.');
   }
-  const results = dataResponses as Array<{
-    url: string;
-    ok: boolean;
-    status: number;
-    statusText: string;
-    text: string | null;
-    error?: string;
-  } | null>;
-  const hit = results.find((r) => r && r.ok && r.text);
+  const results = dataResponses as ConfigFetchResult[];
+  const hit = results.find((r) => r.ok && r.text);
   if (!hit) {
-    if (results.length > 0 && results.every((r) => r && r.status === 404)) {
+    if (results.length > 0 && results.every((r) => r.status === 404)) {
       throw new Error('Configuration file not found. Tried ./ui-config.yml and ./zero-touch-config.yml');
     }
     const details = results
       .map((r, i) => {
-        if (!r) return null;
         if (r.ok) return null;
         const url = r.url || baseUrls[i] || './ui-config.yml';
         if (r.status === 0) return `${url}: ${r.statusText}${r.error ? ' - ' + r.error : ''}`;
