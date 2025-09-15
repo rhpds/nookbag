@@ -14,6 +14,7 @@ export default function ({
       <div className="progress-bar">
         {modules.map((m) => (
           <div
+            key={m.name}
             className={
               m.name === progress.current
                 ? 'progress-bar__item is-current'
