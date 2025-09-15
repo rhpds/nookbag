@@ -69,3 +69,34 @@ export function restartLab() {
 export function completeLab() {
   window.parent.postMessage('COMPLETED', '*');
 }
+
+export function formatYamlError(error: unknown, sourceText: string, sourceName: string): string {
+  const err = error as any;
+  const hasMark = err && err.mark && typeof err.mark.line === 'number' && typeof err.mark.column === 'number';
+  const line = hasMark ? (err.mark.line as number) : 0;
+  const column = hasMark ? (err.mark.column as number) : 0;
+  const reason = (err && (err.reason || err.message)) || 'Unknown YAML parse error';
+  const src = String(sourceText || '');
+  const srcLines = src.split(/\r?\n/);
+  const start = Math.max(0, line - 2);
+  const end = Math.min(srcLines.length, line + 3);
+  const lineNumWidth = String(end).length;
+  const frame = [] as string[];
+  for (let i = start; i < end; i++) {
+    const ln = i + 1;
+    const prefix = i === line ? '>' : ' ';
+    const content = srcLines[i] ?? '';
+    frame.push(`${prefix} ${String(ln).padStart(lineNumWidth, ' ')} | ${content}`);
+    if (i === line) {
+      frame.push(`  ${' '.repeat(lineNumWidth)} | ${' '.repeat(Math.max(0, column))}^`);
+    }
+  }
+  const pretty = [
+    `YAML parse error in ${sourceName}`,
+    `Location: line ${line + 1}, column ${column + 1}`,
+    `Reason: ${reason}`,
+    '',
+    frame.join('\n'),
+  ].join('\n');
+  return pretty;
+}

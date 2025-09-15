@@ -8,9 +8,9 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
-    // UI configuration for browser debugging
-    ui: true,
-    open: true, // Set to true to auto-open UI
+    // UI configuration for browser debugging (disabled by default for CI/containers)
+    ui: false,
+    open: false,
     // Reporter configuration
     reporters: ['verbose'],
     // Coverage configuration

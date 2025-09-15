@@ -16,11 +16,20 @@ import {
 import Split from 'react-split';
 import { ForwardIcon, RedoIcon } from '@patternfly/react-icons';
 import ProgressHeader from './progress-header';
-import { executeStageAndGetStatus, API_CONFIG, silentFetcher, exitLab, completeLab } from './utils';
+import { executeStageAndGetStatus, API_CONFIG, silentFetcher, exitLab, completeLab, formatYamlError } from './utils';
 import Loading from './loading';
 import { ModuleSteps, Step, TModule, TProgress, TTab } from './types';
 
 import './app.css';
+
+type ConfigFetchResult = {
+  url: string;
+  ok: boolean;
+  status: number;
+  statusText: string;
+  text: string | null;
+  error?: string;
+};
 
 const protocol = window.location.protocol;
 const hostname = window.location.hostname;
@@ -116,39 +125,77 @@ export default function () {
   }>({ isLoading: false, stage: null });
   const searchParams = new URLSearchParams(document.location.search);
   const s = searchParams.get('s');
-  const session: Session = s ? JSON.parse(s) : null;
+  let session: Session = null as unknown as Session;
+  try {
+    session = s ? (JSON.parse(s) as Session) : (null as unknown as Session);
+  } catch (_e) {
+    session = null as unknown as Session;
+  }
   const { data: dataResponses, error } = useSWR(
     ['./ui-config.yml', './zero-touch-config.yml'],
-    (urls) =>
-      Promise.all(urls.map((url) => fetch(url)))
-        .then((responses) =>
-          Promise.all(
-            responses.map((response) => {
-              if (response.status === 200) {
-                return response.text();
-              }
-              return null;
-            })
-          )
-        )
-        .catch(null),
+    async (urls: string[]) => {
+      const results: ConfigFetchResult[] = await Promise.all(
+        urls.map(async (url) => {
+          try {
+            const response = await fetch(url);
+            if (response.status === 200) {
+              const text = await response.text();
+              return { url, ok: true, status: 200, statusText: response.statusText, text };
+            }
+            return { url, ok: false, status: response.status, statusText: response.statusText, text: null as string | null };
+          } catch (e: unknown) {
+            const message = e && typeof e === 'object' && 'message' in e ? (e as Error).message : 'Network error';
+            return { url, ok: false, status: 0, statusText: 'Network Error', text: null as string | null, error: message } as const;
+          }
+        })
+      );
+      return results;
+    },
     { suspense: true }
   );
-  const data = dataResponses.find(Boolean);
-  if (!data) throw new Error();
-  const config = yaml.load(data) as {
+  const baseUrls = ['./ui-config.yml', './zero-touch-config.yml'];
+  if (!Array.isArray(dataResponses)) {
+    throw new Error('Failed to load configuration.');
+  }
+  const results = dataResponses as ConfigFetchResult[];
+  const hit = results.find((r) => r.ok && r.text);
+  if (!hit) {
+    if (results.length > 0 && results.every((r) => r.status === 404)) {
+      throw new Error('Configuration file not found. Tried ./ui-config.yml and ./zero-touch-config.yml');
+    }
+    const details = results
+      .map((r, i) => {
+        if (r.ok) return null;
+        const url = r.url || baseUrls[i] || './ui-config.yml';
+        if (r.status === 0) return `${url}: ${r.statusText}${r.error ? ' - ' + r.error : ''}`;
+        return `${url}: HTTP ${r.status} ${r.statusText}`;
+      })
+      .filter(Boolean)
+      .join('; ');
+    if (details) throw new Error(`Failed to load configuration. ${details}`);
+    throw new Error('Failed to load configuration.');
+  }
+  const successfulText = hit.text as string;
+  const successfulName = hit.url || './ui-config.yml';
+  let config = {} as {
     type?: 'showroom' | 'zero-touch';
     antora?: { modules: TModule[]; name: string; dir?: string; version: string };
     tabs?: TTab[];
   };
+  try {
+    config = yaml.load(successfulText) as any;
+  } catch (e: unknown) {
+    const pretty = formatYamlError(e, successfulText, successfulName || './ui-config.yml');
+    throw new Error(pretty);
+  }
   const isBasicShowroom = config.type === 'showroom';
   const { data: configData, error: errConfig } = useSWR<ModuleSteps>(
-    !data || !isBasicShowroom ? API_CONFIG : null,
+    !successfulText || !isBasicShowroom ? API_CONFIG : null,
     silentFetcher,
     { suspense: true }
   );
   const modules = config?.antora?.modules || [];
-  const antoraDir = config?.antora?.dir || isBasicShowroom ? 'www' : 'antora';
+  const antoraDir = config?.antora?.dir || (isBasicShowroom ? 'www' : 'antora');
   const version = config?.antora?.version;
   const s_name = config?.antora?.name || 'modules';
   const [validationMsg, setValidationMsg] = useState<{
@@ -159,7 +206,12 @@ export default function () {
   const tabs = config.tabs?.map((s) => createUrlsFromVars(s)) || [];
   const PROGRESS_KEY = session ? `PROGRESS-${session.sessionUuid}` : null;
   const initProgressStr = PROGRESS_KEY ? window.localStorage.getItem(PROGRESS_KEY) : null;
-  const initProgress: TProgress = initProgressStr ? JSON.parse(initProgressStr) : null;
+  let initProgress: TProgress = null as unknown as TProgress;
+  try {
+    initProgress = initProgressStr ? (JSON.parse(initProgressStr) as TProgress) : (null as unknown as TProgress);
+  } catch (_e) {
+    initProgress = null as unknown as TProgress;
+  }
   const [progress, setProgress] = useState(
     initProgress ?? {
       inProgress: [],
@@ -357,7 +409,7 @@ export default function () {
   }
 
   if (error) {
-    return <div>Configuration file not defined</div>;
+    return <pre style={{ whiteSpace: 'pre-wrap' }}>{(error as Error).message || 'Configuration error'}</pre>;
   }
 
   return (
@@ -456,6 +508,7 @@ export default function () {
                   <Tabs activeKey={currentTabName} onSelect={handleTabClick} className="app-split-right__tabs">
                     {moduleTabs.map((s) => (
                       <Tab
+                        key={s.name}
                         eventKey={s.name}
                         title={
                           <>
@@ -490,7 +543,10 @@ export default function () {
                 </div>
               ) : null}
               {moduleTabs.map((tab) => (
-                <div className={`app-split-right__content tabcontent${tab.name === currentTabName ? ' active' : ''}`}>
+                <div
+                  key={tab.name}
+                  className={`app-split-right__content tabcontent${tab.name === currentTabName ? ' active' : ''}`}
+                >
                   {tab.secondary_url ? (
                     <Split
                       sizes={[50, 50]}
