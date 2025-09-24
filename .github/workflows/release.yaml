@@ -1,0 +1,67 @@
+name: Release Nookbag
+
+on:
+  push:
+    tags:
+      - 'nookbag-v*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: ./nookbag
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            nookbag/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and pack
+        run: ./scripts/pack.sh
+
+      - name: Derive tag and version
+        id: vars
+        run: |
+          TAG_REF="${GITHUB_REF##*/}"
+          echo "tag=${TAG_REF}" >> $GITHUB_OUTPUT
+          # expect tag like nookbag-v0.0.7
+          VERSION="${TAG_REF#nookbag-}"
+          ZIP_NAME="nookbag-${VERSION}.zip"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "zip_name=${ZIP_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Rename packaged zip to match tag
+        run: |
+          # Find the zip produced by pack.sh (nookbag-YYYYmmdd-HHMMSS.zip)
+          SOURCE_ZIP=$(ls -1 dist/nookbag-*.zip | head -n1)
+          if [ -z "$SOURCE_ZIP" ]; then echo "No packaged zip found"; exit 1; fi
+          mv "$SOURCE_ZIP" "dist/${{ steps.vars.outputs.zip_name }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.vars.outputs.zip_name }}
+          path: nookbag/dist/${{ steps.vars.outputs.zip_name }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: ${{ steps.vars.outputs.version }}
+          generate_release_notes: true
+          files: |
+            nookbag/dist/${{ steps.vars.outputs.zip_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
