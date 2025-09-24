@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import yaml from 'js-yaml';
 import fetch from 'unfetch';
-import useSWR from 'swr';
+import useSWRImmutable from 'swr/immutable';
 import {
   Alert,
   Button,
@@ -131,7 +131,7 @@ export default function () {
   } catch (_e) {
     session = null as unknown as Session;
   }
-  const { data: dataResponses, error } = useSWR(
+  const { data: dataResponses, error } = useSWRImmutable(
     ['./ui-config.yml', './zero-touch-config.yml'],
     async (urls: string[]) => {
       const results: ConfigFetchResult[] = await Promise.all(
@@ -151,7 +151,7 @@ export default function () {
       );
       return results;
     },
-    { suspense: true }
+    { suspense: true, revalidateOnFocus: false, revalidateOnReconnect: false, revalidateIfStale: false }
   );
   const baseUrls = ['./ui-config.yml', './zero-touch-config.yml'];
   if (!Array.isArray(dataResponses)) {
@@ -189,10 +189,10 @@ export default function () {
     throw new Error(pretty);
   }
   const isBasicShowroom = config.type === 'showroom';
-  const { data: configData, error: errConfig } = useSWR<ModuleSteps>(
+  const { data: configData, error: errConfig } = useSWRImmutable<ModuleSteps>(
     !successfulText || !isBasicShowroom ? API_CONFIG : null,
     silentFetcher,
-    { suspense: true }
+    { suspense: true, revalidateOnFocus: false, revalidateOnReconnect: false, revalidateIfStale: false }
   );
   const modules = config?.antora?.modules || [];
   const antoraDir = config?.antora?.dir || (isBasicShowroom ? 'www' : 'antora');
