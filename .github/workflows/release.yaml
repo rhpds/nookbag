@@ -10,9 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    defaults:
-      run:
-        working-directory: ./nookbag
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -85,4 +82,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.vars.outputs.tag }}
         run: |
-          gh release upload "$TAG" "nookbag/dist/${{ steps.vars.outputs.zip_name }}" --clobber
+          gh release upload "$TAG" "dist/${{ steps.vars.outputs.zip_name }}" --clobber
