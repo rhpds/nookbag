@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import App from './app';
-import useSWR from 'swr';
+import useSWR from 'swr/immutable';
 import { ErrorBoundary } from 'react-error-boundary';
 // Import test configurations
 import terminalConfig from './test-configs/terminal-config.yml?raw';
@@ -11,8 +11,8 @@ import embeddedWebsiteConfig from './test-configs/embedded-website-config.yml?ra
 import zeroTouchConfig from './test-configs/zero-touch-lab-config.yml?raw';
 import showroomConfig from './test-configs/showroom-config.yml?raw';
 
-// Mock useSWR
-vi.mock('swr', () => ({
+// Mock useSWR (immutable)
+vi.mock('swr/immutable', () => ({
   default: vi.fn(() => ({
     data: null,
     error: null,

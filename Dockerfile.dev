@@ -1,0 +1,16 @@
+FROM registry.access.redhat.com/ubi10/nodejs-22-minimal:10.0
+USER root
+WORKDIR /app
+
+# Dev image for hot reload with Vite
+ENV NODE_ENV=development
+
+COPY package.json package-lock.json ./
+RUN npm ci && npm cache clean --force
+
+# Copy source (will be overlaid by volume mounts in compose for live reload)
+COPY ./ ./
+
+EXPOSE 8080
+
+CMD ["npm", "run", "dev"]
