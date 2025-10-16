@@ -22,6 +22,20 @@ import { ModuleSteps, Step, TModule, TProgress, TTab } from './types';
 
 import './app.css';
 
+function renderLimitedMarkdown(text: string): { __html: string } {
+  if (!text) return { __html: '' };
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  const withLinks = escaped.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1<\/a>');
+  const withCode = withLinks.replace(/`([^`]+)`/g, '<code>$1<\/code>');
+  const withBold = withCode.replace(/\*\*(.+?)\*\*/g, '<strong>$1<\/strong>');
+  const withItalic = withBold.replace(/\*(.+?)\*/g, '<em>$1<\/em>');
+  const withBreaks = withItalic.replace(/\n/g, '<br\/>' );
+  return { __html: withBreaks };
+}
+
 type ConfigFetchResult = {
   url: string;
   ok: boolean;
@@ -430,7 +444,7 @@ export default function () {
         <ModalBody>
           {validationMsg ? (
             <Alert variant={validationMsg.type} title={validationMsg.title} isPlain isInline>
-              <div style={{ whiteSpace: 'pre-wrap' }}>{validationMsg.message}</div>
+              <div dangerouslySetInnerHTML={renderLimitedMarkdown(validationMsg.message)} />
             </Alert>
           ) : null}
         </ModalBody>
