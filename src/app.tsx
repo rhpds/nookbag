@@ -218,6 +218,10 @@ export default function () {
     title: string;
   } | null>(null);
   const tabs = config.tabs?.map((s) => createUrlsFromVars(s)) || [];
+  // Feature flags (with sensible defaults)
+  const skipModuleEnabled = config && Object.prototype.hasOwnProperty.call(config, 'skipModuleEnabled')
+    ? Boolean((config as any).skipModuleEnabled)
+    : true;
   const PROGRESS_KEY = session ? `PROGRESS-${session.sessionUuid}` : null;
   const initProgressStr = PROGRESS_KEY ? window.localStorage.getItem(PROGRESS_KEY) : null;
   let initProgress: TProgress = null as unknown as TProgress;
@@ -540,15 +544,17 @@ export default function () {
                   </Tabs>
                   {!isBasicShowroom ? (
                     <div className="app-split-right__actions">
-                      <Button
-                        key="skip-module"
-                        variant="secondary"
-                        size="sm"
-                        onClick={skipModule}
-                        icon={<ForwardIcon />}
-                      >
-                        Skip module
-                      </Button>
+                      {skipModuleEnabled ? (
+                        <Button
+                          key="skip-module"
+                          variant="secondary"
+                          size="sm"
+                          onClick={skipModule}
+                          icon={<ForwardIcon />}
+                        >
+                          Skip module
+                        </Button>
+                      ) : null}
                       <Button key="exit-lab" variant="primary" size="sm" onClick={exitWarning}>
                         Exit
                       </Button>
