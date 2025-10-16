@@ -430,7 +430,7 @@ export default function () {
         <ModalBody>
           {validationMsg ? (
             <Alert variant={validationMsg.type} title={validationMsg.title} isPlain isInline>
-              {validationMsg.message}
+              <div style={{ whiteSpace: 'pre-wrap' }}>{validationMsg.message}</div>
             </Alert>
           ) : null}
         </ModalBody>
