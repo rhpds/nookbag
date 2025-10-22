@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import yaml from 'js-yaml';
 import fetch from 'unfetch';
-import useSWR from 'swr';
+import useSWRImmutable from 'swr/immutable';
 import {
   Alert,
   Button,
@@ -21,6 +21,20 @@ import Loading from './loading';
 import { ModuleSteps, Step, TModule, TProgress, TTab } from './types';
 
 import './app.css';
+
+function renderLimitedMarkdown(text: string): { __html: string } {
+  if (!text) return { __html: '' };
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  const withLinks = escaped.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1<\/a>');
+  const withCode = withLinks.replace(/`([^`]+)`/g, '<code>$1<\/code>');
+  const withBold = withCode.replace(/\*\*(.+?)\*\*/g, '<strong>$1<\/strong>');
+  const withItalic = withBold.replace(/\*(.+?)\*/g, '<em>$1<\/em>');
+  const withBreaks = withItalic.replace(/\n/g, '<br\/>' );
+  return { __html: withBreaks };
+}
 
 type ConfigFetchResult = {
   url: string;
@@ -131,7 +145,7 @@ export default function () {
   } catch (_e) {
     session = null as unknown as Session;
   }
-  const { data: dataResponses, error } = useSWR(
+  const { data: dataResponses, error } = useSWRImmutable(
     ['./ui-config.yml', './zero-touch-config.yml'],
     async (urls: string[]) => {
       const results: ConfigFetchResult[] = await Promise.all(
@@ -151,7 +165,7 @@ export default function () {
       );
       return results;
     },
-    { suspense: true }
+    { suspense: true, revalidateOnFocus: false, revalidateOnReconnect: false, revalidateIfStale: false }
   );
   const baseUrls = ['./ui-config.yml', './zero-touch-config.yml'];
   if (!Array.isArray(dataResponses)) {
@@ -189,10 +203,10 @@ export default function () {
     throw new Error(pretty);
   }
   const isBasicShowroom = config.type === 'showroom';
-  const { data: configData, error: errConfig } = useSWR<ModuleSteps>(
+  const { data: configData, error: errConfig } = useSWRImmutable<ModuleSteps>(
     !successfulText || !isBasicShowroom ? API_CONFIG : null,
     silentFetcher,
-    { suspense: true }
+    { suspense: true, revalidateOnFocus: false, revalidateOnReconnect: false, revalidateIfStale: false }
   );
   const modules = config?.antora?.modules || [];
   const antoraDir = config?.antora?.dir || (isBasicShowroom ? 'www' : 'antora');
@@ -430,7 +444,7 @@ export default function () {
         <ModalBody>
           {validationMsg ? (
             <Alert variant={validationMsg.type} title={validationMsg.title} isPlain isInline>
-              {validationMsg.message}
+              <div dangerouslySetInnerHTML={renderLimitedMarkdown(validationMsg.message)} />
             </Alert>
           ) : null}
         </ModalBody>
