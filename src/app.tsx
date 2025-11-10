@@ -240,11 +240,16 @@ export default function () {
   );
   const [iframeModule, setIframeModule] = useState(searchParams.get('p') || progress.current || 'index');
   const currIndex = modules.findIndex((m) => m.name === progress.current);
-  const [currentTabName, setCurrentTabName] = useState(
-    Array.isArray(tabs) && tabs.length > 0
-      ? tabs.find((t) => !t.modules || t.modules.includes(modules[currIndex].name))?.name
-      : undefined
-  );
+  const [currentTabName, setCurrentTabName] = useState(() => {
+    const tParam = searchParams.get('t');
+    const hasTabs = Array.isArray(tabs) && tabs.length > 0;
+    if (!hasTabs) return undefined;
+    const tabAllowed = tParam
+      ? tabs.some((t) => t.name === tParam && (!t.modules || t.modules.includes(modules[currIndex].name)))
+      : false;
+    if (tParam && tabAllowed) return tParam;
+    return tabs.find((t) => !t.modules || t.modules.includes(modules[currIndex].name))?.name;
+  });
   const initialFile = `./${antoraDir}/${s_name ? s_name + '/' : ''}${version ? version + '/' : ''}${iframeModule}.html`;
   const showTabsBar =
     (tabs.length > 1 || tabs.some((t) => t.secondary_name)) && (isBasicShowroom || modules.length > 0);
@@ -335,6 +340,14 @@ export default function () {
       window.open(tab.url, '_blank');
     } else {
       setCurrentTabName(tab.name);
+      // Persist selected right-pane tab in URL (?t=<tabName>)
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('t', tab.name);
+        window.history.replaceState(null, '', url.toString());
+      } catch (_e) {
+        // no-op
+      }
     }
   }
 
@@ -349,7 +362,15 @@ export default function () {
     const currentTab = tabs.find((t) => t.name === currentTabName);
     if (Array.isArray(currentTab?.modules) && currentTab.modules.length > 0) {
       if (!currentTab.modules.includes(module.name)) {
-        setCurrentTabName(tabs.find((t) => !t.modules || t.modules.includes(module.name))?.name);
+        const nextTabName = tabs.find((t) => !t.modules || t.modules.includes(module.name))?.name;
+        setCurrentTabName(nextTabName);
+        try {
+          const url = new URL(window.location.href);
+          if (nextTabName) url.searchParams.set('t', nextTabName);
+          window.history.replaceState(null, '', url.toString());
+        } catch (_e) {
+          // no-op
+        }
       }
     }
   }
@@ -433,6 +454,21 @@ export default function () {
       (tab as HTMLIFrameElement).src = url;
     }
   }
+
+  // Keep URL param ?t in sync with currentTabName for programmatic changes as well
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      if (currentTabName) {
+        url.searchParams.set('t', currentTabName);
+      } else {
+        url.searchParams.delete('t');
+      }
+      window.history.replaceState(null, '', url.toString());
+    } catch (_e) {
+      // no-op
+    }
+  }, [currentTabName]);
 
   if (error) {
     return <pre style={{ whiteSpace: 'pre-wrap' }}>{(error as Error).message || 'Configuration error'}</pre>;
