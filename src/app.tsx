@@ -430,6 +430,11 @@ export default function () {
     return <pre style={{ whiteSpace: 'pre-wrap' }}>{(error as Error).message || 'Configuration error'}</pre>;
   }
 
+  // Determine default left/right column widths for the horizontal Split.
+  const configuredLeftWidth = Number((config as any)?.default_width);
+  const hasValidLeftWidth = Number.isFinite(configuredLeftWidth) && configuredLeftWidth > 0 && configuredLeftWidth < 100;
+  const leftPaneDefault = Math.max(10, Math.min(90, hasValidLeftWidth ? configuredLeftWidth : 25));
+
   return (
     <div>
       <Loading
@@ -460,7 +465,7 @@ export default function () {
       </Modal>
       <div className="app-wrapper">
         <Split
-          sizes={moduleTabs.length > 0 ? [25, 75] : [100]}
+          sizes={moduleTabs.length > 0 ? [leftPaneDefault, 100 - leftPaneDefault] : [100]}
           minSize={100}
           gutterSize={1}
           direction="horizontal"

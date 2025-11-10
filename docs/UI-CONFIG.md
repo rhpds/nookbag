@@ -21,6 +21,7 @@ This document describes the top-level `ui-config.yml` options and details for co
 | `antora.modules[].label` | string | optional | Human-friendly title shown in the progress header. |
 | `antora.modules[].scripts` | array (enum) | optional | Any of `setup`, `validation`, `solve`; enables corresponding automation actions. |
 | `antora.modules[].solveButton` | boolean | optional | Force-enable the Solve button for this module when true. |
+| `default_width` | number (0-100) | default: `25` | Left column width percentage for the main horizontal split. Right column becomes `100 - default_width`. Clamped between 10 and 90. |
 | `tabs[]` | array (tab objects) | — | Declares the tabs shown in the app. |
 | `tabs[].name` | string | required | Display label and internal key for the tab (must be unique). |
 | `tabs[].url` | string | optional | Full URL to load; if present, overrides `port`/`path` for the primary view. |
@@ -59,6 +60,8 @@ Embedded internal service (constructed URL)
 
 ```yaml
 # ui-config.yml
+
+default_width: 30  # Left column 30%, right column 70%
 
 tabs:
   - name: Local Application
