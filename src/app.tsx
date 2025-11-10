@@ -238,7 +238,7 @@ export default function () {
       current: modules.length > 0 ? modules[0].name : null,
     }
   );
-  const [iframeModule, setIframeModule] = useState(progress.current || 'index');
+  const [iframeModule, setIframeModule] = useState(searchParams.get('p') || progress.current || 'index');
   const currIndex = modules.findIndex((m) => m.name === progress.current);
   const [currentTabName, setCurrentTabName] = useState(
     Array.isArray(tabs) && tabs.length > 0
@@ -300,6 +300,14 @@ export default function () {
       });
       _progress.inProgress = [key];
       _progress.current = key;
+      // Sync current documentation page to parent URL so refresh restores it
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('p', key);
+        window.history.replaceState(null, '', url.toString());
+      } catch (_e) {
+        // no-op: best-effort URL sync
+      }
       const module = modules.find((x) => x.name === key);
       if (module && isScriptAvailable(module, 'setup')) {
         setLoaderStatus({ isLoading: true, stage: 'setup' });
