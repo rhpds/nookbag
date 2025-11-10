@@ -439,7 +439,9 @@ export default function () {
   }
 
   // Determine default left/right column widths for the horizontal Split.
-  const configuredLeftWidth = Number((config as any)?.default_width);
+  const widthFromUrl = Number(searchParams.get('w'));
+  const hasValidUrlWidth = Number.isFinite(widthFromUrl) && widthFromUrl > 0 && widthFromUrl < 100;
+  const configuredLeftWidth = hasValidUrlWidth ? widthFromUrl : Number((config as any)?.default_width);
   const hasValidLeftWidth = Number.isFinite(configuredLeftWidth) && configuredLeftWidth > 0 && configuredLeftWidth < 100;
   const leftPaneDefault = Math.max(10, Math.min(90, hasValidLeftWidth ? configuredLeftWidth : 25));
 
@@ -479,7 +481,7 @@ export default function () {
           direction="horizontal"
           cursor="col-resize"
           style={{ display: 'flex', flexDirection: 'row', resize: 'horizontal', height: '100%' }}
-          onDragEnd={() => {
+          onDragEnd={(sizes?: number[]) => {
             // Hack to fix scrollbar issue https://github.com/nathancahill/split/issues/119
             document.querySelectorAll('iframe').forEach((iframe) => {
               iframe.style.display = 'none';
@@ -487,6 +489,30 @@ export default function () {
                 iframe.style.display = 'block';
               });
             });
+            // Persist current split width to URL (?w=<percent>) so a refresh restores it
+            try {
+              if (Array.isArray(sizes) && sizes.length >= 2) {
+                const pct = Math.round(sizes[0]);
+                const clamped = Math.max(10, Math.min(90, pct));
+                const url = new URL(window.location.href);
+                url.searchParams.set('w', String(clamped));
+                window.history.replaceState(null, '', url.toString());
+              } else {
+                // Fallback DOM-based calculation (best-effort)
+                const splitRoot = (document.querySelector('.app-wrapper > div[style*="display: flex"]') ||
+                  document.querySelector('.app-wrapper > div')) as HTMLElement | null;
+                const leftPane = document.querySelector('.app-wrapper .split.left') as HTMLElement | null;
+                if (splitRoot && leftPane && splitRoot.clientWidth > 0) {
+                  const pct = Math.round((leftPane.clientWidth / splitRoot.clientWidth) * 100);
+                  const clamped = Math.max(10, Math.min(90, pct));
+                  const url = new URL(window.location.href);
+                  url.searchParams.set('w', String(clamped));
+                  window.history.replaceState(null, '', url.toString());
+                }
+              }
+            } catch (_e) {
+              // no-op: best-effort URL sync
+            }
           }}
         >
           <div className="split left" ref={instructionsPanelRef}>
