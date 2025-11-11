@@ -290,6 +290,15 @@ export default function () {
     if (ref.current) {
       const iframe = ref.current as HTMLIFrameElement;
       if (!iframe || !iframe.contentWindow) throw new Error('No valid iframe found');
+      // Attempt to reflect the Antora page title into the parent document title
+      try {
+        const doc = (iframe as any).contentDocument || iframe.contentWindow.document;
+        if (doc && typeof doc.title === 'string' && doc.title.trim().length > 0) {
+          document.title = doc.title;
+        }
+      } catch (_e) {
+        // Cross-origin or other access issue; keep existing title
+      }
       const page = iframe.contentWindow.location.pathname.split('/');
       let key = '';
       if (page[page.length - 2] === version || !version) {
