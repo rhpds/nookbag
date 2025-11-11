@@ -192,7 +192,7 @@ export default function () {
   const successfulText = hit.text as string;
   const successfulName = hit.url || './ui-config.yml';
   let config = {} as {
-    type?: 'showroom' | 'zero-touch';
+    type?: 'showroom' | 'zerotouch' | 'zero-touch';
     antora?: { modules: TModule[]; name: string; dir?: string; version: string };
     tabs?: TTab[];
   };
@@ -223,7 +223,8 @@ export default function () {
   const skipModuleEnabled = config && Object.prototype.hasOwnProperty.call(config, 'skipModuleEnabled')
     ? Boolean((config as any).skipModuleEnabled)
     : true;
-  const persistUrlState = Boolean((config as any)?.persist_url_state || (config as any)?.persistUrlState);
+  const persistUrlState =
+    isBasicShowroom && Boolean((config as any)?.persist_url_state || (config as any)?.persistUrlState);
   const PROGRESS_KEY = session ? `PROGRESS-${session.sessionUuid}` : null;
   const initProgressStr = PROGRESS_KEY ? window.localStorage.getItem(PROGRESS_KEY) : null;
   let initProgress: TProgress = null as unknown as TProgress;
