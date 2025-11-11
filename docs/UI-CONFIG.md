@@ -22,6 +22,7 @@ This document describes the top-level `ui-config.yml` options and details for co
 | `antora.modules[].scripts` | array (enum) | optional | Any of `setup`, `validation`, `solve`; enables corresponding automation actions. |
 | `antora.modules[].solveButton` | boolean | optional | Force-enable the Solve button for this module when true. |
 | `default_width` | number (0-100) | default: `25` | Left column width percentage for the main horizontal split. Right column becomes `100 - default_width`. Clamped between 10 and 90. |
+| `persist_url_state` | boolean | default: `false` | When true, saves and restores state via URL query params: left content page as `p`, right active tab as `t`. Alias: `persistUrlState`. |
 | `tabs[]` | array (tab objects) | — | Declares the tabs shown in the app. |
 | `tabs[].name` | string | required | Display label and internal key for the tab (must be unique). |
 | `tabs[].url` | string | optional | Full URL to load; if present, overrides `port`/`path` for the primary view. |
@@ -42,6 +43,11 @@ This document describes the top-level `ui-config.yml` options and details for co
 - Tabs that point to terminal paths (e.g., `/wetty`, `/tty*`) or use terminal-related `type`s get terminal-friendly styling in the iframe.
 - If neither `url` nor `port` is defined for the primary view, the app throws an error: "Port and url not defined".
 - The app builds URLs using the current page's `window.location.protocol` and `window.location.hostname`.
+- When `persist_url_state: true`, the app reads/writes:
+  - Left content page to `?p=<module-or-subpath>`
+  - Right active tab to `?t=<tabName>`
+  These params are ignored when `persist_url_state` is false (default).
+- The initial left/right split width can be overridden via `?w=<percent>` in the URL (10–90). Dragging the split updates `?w` to persist on refresh.
 
 ### Minimal examples
 

@@ -218,10 +218,12 @@ export default function () {
     title: string;
   } | null>(null);
   const tabs = config.tabs?.map((s) => createUrlsFromVars(s)) || [];
+
   // Feature flags (with sensible defaults)
   const skipModuleEnabled = config && Object.prototype.hasOwnProperty.call(config, 'skipModuleEnabled')
     ? Boolean((config as any).skipModuleEnabled)
     : true;
+  const persistUrlState = Boolean((config as any)?.persist_url_state || (config as any)?.persistUrlState);
   const PROGRESS_KEY = session ? `PROGRESS-${session.sessionUuid}` : null;
   const initProgressStr = PROGRESS_KEY ? window.localStorage.getItem(PROGRESS_KEY) : null;
   let initProgress: TProgress = null as unknown as TProgress;
@@ -238,10 +240,13 @@ export default function () {
       current: modules.length > 0 ? modules[0].name : null,
     }
   );
-  const [iframeModule, setIframeModule] = useState(searchParams.get('p') || progress.current || 'index');
+  const [iframeModule, setIframeModule] = useState(() => {
+    const pParam = persistUrlState ? searchParams.get('p') : null;
+    return pParam || progress.current || 'index';
+  });
   const currIndex = modules.findIndex((m) => m.name === progress.current);
   const [currentTabName, setCurrentTabName] = useState(() => {
-    const tParam = searchParams.get('t');
+    const tParam = persistUrlState ? searchParams.get('t') : null;
     const hasTabs = Array.isArray(tabs) && tabs.length > 0;
     if (!hasTabs) return undefined;
     const tabAllowed = tParam
@@ -305,13 +310,15 @@ export default function () {
       });
       _progress.inProgress = [key];
       _progress.current = key;
-      // Sync current documentation page to parent URL so refresh restores it
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.set('p', key);
-        window.history.replaceState(null, '', url.toString());
-      } catch (_e) {
-        // no-op: best-effort URL sync
+      // Sync current documentation page to parent URL so refresh restores it (when enabled)
+      if (persistUrlState) {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.set('p', key);
+          window.history.replaceState(null, '', url.toString());
+        } catch (_e) {
+          // no-op: best-effort URL sync
+        }
       }
       const module = modules.find((x) => x.name === key);
       if (module && isScriptAvailable(module, 'setup')) {
@@ -340,13 +347,15 @@ export default function () {
       window.open(tab.url, '_blank');
     } else {
       setCurrentTabName(tab.name);
-      // Persist selected right-pane tab in URL (?t=<tabName>)
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.set('t', tab.name);
-        window.history.replaceState(null, '', url.toString());
-      } catch (_e) {
-        // no-op
+      // Persist selected right-pane tab in URL (?t=<tabName>) when enabled
+      if (persistUrlState) {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.set('t', tab.name);
+          window.history.replaceState(null, '', url.toString());
+        } catch (_e) {
+          // no-op
+        }
       }
     }
   }
@@ -364,12 +373,14 @@ export default function () {
       if (!currentTab.modules.includes(module.name)) {
         const nextTabName = tabs.find((t) => !t.modules || t.modules.includes(module.name))?.name;
         setCurrentTabName(nextTabName);
-        try {
-          const url = new URL(window.location.href);
-          if (nextTabName) url.searchParams.set('t', nextTabName);
-          window.history.replaceState(null, '', url.toString());
-        } catch (_e) {
-          // no-op
+        if (persistUrlState) {
+          try {
+            const url = new URL(window.location.href);
+            if (nextTabName) url.searchParams.set('t', nextTabName);
+            window.history.replaceState(null, '', url.toString());
+          } catch (_e) {
+            // no-op
+          }
         }
       }
     }
@@ -457,6 +468,7 @@ export default function () {
 
   // Keep URL param ?t in sync with currentTabName for programmatic changes as well
   useEffect(() => {
+    if (!persistUrlState) return;
     try {
       const url = new URL(window.location.href);
       if (currentTabName) {
