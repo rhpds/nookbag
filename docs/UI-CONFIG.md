@@ -12,6 +12,7 @@ This document describes the top-level `ui-config.yml` options and details for co
 | --- | --- | --- | --- |
 | `type` | enum | — | `showroom`: documentation-only UI. `zero-touch`: enables lab progression controls and automation hooks. |
 | `antora` | object | — | Controls documentation content shown in the left panel iframe. |
+| `skipModuleEnabled` | boolean | optional (default: `true`) | Controls visibility of the "Skip module" button in zero-touch mode. |
 | `antora.name` | string | default: `modules` | Logical root for generated HTML paths. |
 | `antora.dir` | string | default: `www` when `type: showroom`; otherwise `antora` | Directory used for iframe base path. |
 | `antora.version` | string | — | Optional version segment included in iframe paths. |
@@ -123,4 +124,18 @@ tabs:
       - module-01
       - module-03
     external: false
+```
+
+Disable Skip module button (zero-touch)
+
+```yaml
+# ui-config.yml
+
+type: zero-touch
+skipModuleEnabled: false
+
+antora:
+  modules:
+    - name: lab-setup
+    - name: database-connection
 ```
