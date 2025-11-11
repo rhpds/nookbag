@@ -61,13 +61,13 @@ export const silentFetcher = async (url: string) => {
   }
 };
 export function exitLab() {
-  window.parent.postMessage('DELETE', '*');
+  window.parent.postMessage('DELETE', getParentOrigin());
 }
 export function restartLab() {
-  window.parent.postMessage('RESTART', '*');
+  window.parent.postMessage('RESTART', getParentOrigin());
 }
 export function completeLab() {
-  window.parent.postMessage('COMPLETED', '*');
+  window.parent.postMessage('COMPLETED', getParentOrigin());
 }
 
 export function formatYamlError(error: unknown, sourceText: string, sourceName: string): string {
@@ -99,4 +99,16 @@ export function formatYamlError(error: unknown, sourceText: string, sourceName: 
     frame.join('\n'),
   ].join('\n');
   return pretty;
+}
+
+function getParentOrigin(): string {
+  try {
+    if (typeof document !== 'undefined' && document.referrer) {
+      const ref = new URL(document.referrer);
+      if (ref.origin) return ref.origin;
+    }
+  } catch (_e) {
+    // no-op
+  }
+  return typeof window !== 'undefined' && window.location ? window.location.origin : '*';
 }
