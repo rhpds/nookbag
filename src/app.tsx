@@ -582,6 +582,8 @@ export default function () {
               width="100%"
               className="app__instructions"
               height="100%"
+              title={`Instructions - ${iframeModule}`}
+              aria-label={`Instructions for ${iframeModule}`}
             ></iframe>
             {!isBasicShowroom ? (
               <div className="app-iframe__inner">
@@ -664,7 +666,14 @@ export default function () {
                       style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
                     >
                       <div className="split top">
-                        <iframe src={tab.url} width="100%" height="100%" className="main-content"></iframe>
+                        <iframe
+                          src={tab.url}
+                          width="100%"
+                          height="100%"
+                          className="main-content"
+                          title={`${tab.name} - primary`}
+                          aria-label={`${tab.name} primary content`}
+                        ></iframe>
                       </div>
                       <div className="split bottom">
                         {tab.secondary_name ? (
@@ -677,6 +686,8 @@ export default function () {
                           width="100%"
                           height="100%"
                           style={{ display: 'block' }}
+                          title={`${tab.secondary_name || 'Secondary'} - ${tab.name}`}
+                          aria-label={`${tab.secondary_name || 'Secondary'} content for ${tab.name}`}
                         ></iframe>
                       </div>
                     </Split>
@@ -689,6 +700,8 @@ export default function () {
                       style={{
                         ...(isTerminalTab(tab) ? { padding: '0 32px', background: '#000' } : {}),
                       }}
+                      title={`${tab.name}`}
+                      aria-label={`${tab.name} content`}
                     ></iframe>
                   )}
                 </div>
