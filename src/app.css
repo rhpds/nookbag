@@ -41,6 +41,8 @@ iframe {
 .split.right {
   display: flex;
   flex-direction: column;
+  height: 100vh;
+  min-height: 0;
 }
 
 .split.bottom {
@@ -170,13 +172,29 @@ iframe {
   -moz-box-sizing: border-box;
   box-sizing: border-box;
 }
-.split.split-left, .split.split-right {
-  overflow-y: auto;
+.split.left, .split.right {
+  overflow-y: hidden;
   overflow-x: hidden;
 }
-.split.split-top, .split.split-bottom {
+.split.top, .split.bottom {
   overflow-y: hidden;
   overflow-x: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Ensure iframes fill remaining space inside split sections */
+.split.top > iframe,
+.split.bottom > iframe {
+  height: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Reserve fixed height for the secondary tab header in the bottom split */
+.split.bottom > .pf-c-tabs {
+  flex: 0 0 56px;
 }
 
 .app-wrapper__inner {
@@ -201,6 +219,7 @@ iframe {
 }
 .app-split-right__top-bar {
   height: 56px;
+  flex: 0 0 56px;
   position: relative;
   display: flex;
   flex-direction: row;
@@ -225,6 +244,8 @@ iframe {
   opacity: 0;
   z-index: -9999;
   position: absolute;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .app-split-right__content.active {
   opacity: 1;
