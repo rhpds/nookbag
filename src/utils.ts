@@ -3,24 +3,27 @@ import { Step } from './types';
 
 const API_PATH = '/runner/api';
 export async function getJobStatus(jobId: string): Promise<{ Status: 'successful' | 'failed'; Output?: string }> {
-  async function jobStatusFn() {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    return getJobStatus(jobId);
+  async function sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
-  const response = await fetch(`${API_PATH}/job/${jobId}`);
-  const data = await response.json();
-  const status = data['Status'];
-
-  if (status) {
-    if (status === 'scheduled' || status === 'running') {
-      return await jobStatusFn();
-    } else {
+  const maxAttempts = 60; // ~ up to ~10 minutes worst case with backoff below
+  const maxDelayMs = 10_000;
+  let attempt = 0;
+  let delayMs = 1_000;
+  // First immediate check, then poll with capped exponential backoff
+  while (attempt <= maxAttempts) {
+    const response = await fetch(`${API_PATH}/job/${jobId}`);
+    const data = await response.json();
+    const status = data['Status'];
+    if (status && status !== 'scheduled' && status !== 'running') {
       return Promise.resolve(data);
     }
+    attempt += 1;
+    if (attempt > maxAttempts) break;
+    await sleep(delayMs);
+    delayMs = Math.min(delayMs * 2, maxDelayMs);
   }
-  return Promise.resolve({
-    Status: 'failed',
-  });
+  return Promise.resolve({ Status: 'failed', Output: 'Job status polling timed out' });
 }
 
 export async function executeStage(moduleName: string, stage: Step): Promise<string | null> {
@@ -61,13 +64,13 @@ export const silentFetcher = async (url: string) => {
   }
 };
 export function exitLab() {
-  window.parent.postMessage('DELETE', '*');
+  window.parent.postMessage('DELETE', getParentOrigin());
 }
 export function restartLab() {
-  window.parent.postMessage('RESTART', '*');
+  window.parent.postMessage('RESTART', getParentOrigin());
 }
 export function completeLab() {
-  window.parent.postMessage('COMPLETED', '*');
+  window.parent.postMessage('COMPLETED', getParentOrigin());
 }
 
 export function formatYamlError(error: unknown, sourceText: string, sourceName: string): string {
@@ -99,4 +102,16 @@ export function formatYamlError(error: unknown, sourceText: string, sourceName: 
     frame.join('\n'),
   ].join('\n');
   return pretty;
+}
+
+function getParentOrigin(): string {
+  try {
+    if (typeof document !== 'undefined' && document.referrer) {
+      const ref = new URL(document.referrer);
+      if (ref.origin) return ref.origin;
+    }
+  } catch (_e) {
+    // no-op
+  }
+  return typeof window !== 'undefined' && window.location ? window.location.origin : '*';
 }

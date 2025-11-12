@@ -7,15 +7,15 @@ export default function ({ expirationTime }: { expirationTime: number }) {
   useEffect(() => {
     function calculateRemainingMins() {
       const remainingTime = expirationTime - Date.now();
-      const r = remainingTime !== undefined ? Math.ceil(remainingTime / 1000 / 60) : undefined;
-      if (r !== remainingMins) setRemainingMins(r ?? 0);
+      const r = Number.isFinite(remainingTime) ? Math.ceil(remainingTime / 1000 / 60) : 0;
+      setRemainingMins((prev) => (prev !== r ? r : prev));
     }
     const interval = setInterval(calculateRemainingMins, 1000);
     calculateRemainingMins();
     return () => {
       clearInterval(interval);
     };
-  }, []);
+  }, [expirationTime]);
 
   return (
     <Tooltip position="bottom" content={`You have ${remainingMins} mins left to complete this lab.`}>
