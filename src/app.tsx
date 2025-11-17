@@ -300,12 +300,26 @@ export default function () {
       } catch (_e) {
         // Cross-origin or other access issue; keep existing title
       }
-      const page = iframe.contentWindow.location.pathname.split('/');
+      const pathname = iframe.contentWindow.location.pathname;
+      const segments = pathname.split('/').filter(Boolean);
       let key = '';
-      if (page[page.length - 2] === version || !version) {
-        key = page[page.length - 1].split('.')[0];
-      } else {
-        key = `${page[page.length - 2]}/${page[page.length - 1].split('.')[0]}`;
+      // Derive key as the path under /<antoraDir>/<s_name>/[<version>/], without .html
+      try {
+        const antoraIdx = segments.indexOf(antoraDir);
+        const nameIdx = antoraIdx >= 0 ? segments.indexOf(s_name, antoraIdx + 1) : -1;
+        let startIdx = nameIdx >= 0 ? nameIdx + 1 : -1;
+        if (startIdx >= 0 && version && segments[startIdx] === version) {
+          startIdx += 1;
+        }
+        if (startIdx >= 0) {
+          const relPath = segments.slice(startIdx).join('/');
+          key = relPath.replace(/\.html$/, '');
+        } else {
+          // Fallback: use last segment(s) sans extension
+          key = segments.slice(-2).join('/').replace(/\.html$/, '');
+        }
+      } catch (_e) {
+        key = segments[segments.length - 1].replace(/\.html$/, '');
       }
       const _progress = { ...progress };
       let pivotPassed = false;
