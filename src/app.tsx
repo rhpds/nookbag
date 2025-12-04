@@ -108,7 +108,8 @@ function isScriptAvailable(module: TModule, scriptName: Step) {
   return !module.scripts || module.scripts.includes(scriptName);
 }
 
-function showSolveBtn(module: TModule) {
+function showSolveBtn(module?: TModule) {
+  if (!module) return false;
   if (module.solveButton === true) return true;
   if (!module.scripts) return false;
   return isScriptAvailable(module, 'solve');
