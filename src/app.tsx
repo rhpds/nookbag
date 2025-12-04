@@ -105,7 +105,8 @@ const createUrlsFromVars = (vars: TTab): TTab => {
 };
 
 function isScriptAvailable(module: TModule, scriptName: Step) {
-  return !module.scripts || module.scripts.includes(scriptName);
+  if (!Array.isArray(module.scripts)) return false;
+  return module.scripts.includes(scriptName);
 }
 
 function showSolveBtn(module?: TModule) {
@@ -251,11 +252,12 @@ export default function () {
     const tParam = persistUrlState ? searchParams.get('t') : null;
     const hasTabs = Array.isArray(tabs) && tabs.length > 0;
     if (!hasTabs) return undefined;
+    const currentModuleName = modules[currIndex]?.name;
     const tabAllowed = tParam
-      ? tabs.some((t) => t.name === tParam && (!t.modules || t.modules.includes(modules[currIndex].name)))
+      ? tabs.some((t) => t.name === tParam && (!t.modules || (currentModuleName ? t.modules.includes(currentModuleName) : true)))
       : false;
     if (tParam && tabAllowed) return tParam;
-    return tabs.find((t) => !t.modules || t.modules.includes(modules[currIndex].name))?.name;
+    return tabs.find((t) => !t.modules || (currentModuleName ? t.modules.includes(currentModuleName) : true))?.name;
   });
   const initialFile = `./${antoraDir}/${s_name ? s_name + '/' : ''}${version ? version + '/' : ''}${iframeModule}.html`;
   const showTabsBar =
@@ -263,7 +265,8 @@ export default function () {
   const moduleTabs = tabs.filter((t) => {
     if (!t.modules) return true;
     if (Array.isArray(t.modules) && t.modules.length > 0) {
-      if (t.modules.includes(modules[currIndex].name)) {
+      const currentModuleName = modules[currIndex]?.name;
+      if (currentModuleName && t.modules.includes(currentModuleName)) {
         return true;
       }
       return false;
