@@ -325,7 +325,12 @@ export default function () {
       } catch (_e) {
         key = segments[segments.length - 1].replace(/\.html$/, '');
       }
-      const _progress = { ...progress };
+      const _progress: TProgress = {
+        inProgress: [key],
+        completed: [],
+        notStarted: [],
+        current: key,
+      };
       let pivotPassed = false;
       modules.forEach((m) => {
         if (m.name === key) {
@@ -336,8 +341,8 @@ export default function () {
           _progress.completed.push(m.name);
         }
       });
-      _progress.inProgress = [key];
-      _progress.current = key;
+      // Always update progress based on the newly loaded page
+      setProgress(_progress);
       // Sync current documentation page to parent URL so refresh restores it (when enabled)
       if (persistUrlState) {
         try {
@@ -355,13 +360,40 @@ export default function () {
         const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
         Promise.all([executeStageAndGetStatusPromise, minTimeout])
           .then((_) => {
-            setProgress(_progress);
             setLoaderStatus({ isLoading: false, stage: null });
           })
           .catch(() => {
-            setProgress(_progress);
             setLoaderStatus({ isLoading: false, stage: null });
           });
+      }
+    }
+  }
+
+  function setProgressFor(moduleName: string) {
+    const newProgress: TProgress = {
+      inProgress: [moduleName],
+      completed: [],
+      notStarted: [],
+      current: moduleName,
+    };
+    let pivotPassed = false;
+    modules.forEach((m) => {
+      if (m.name === moduleName) {
+        pivotPassed = true;
+      } else if (pivotPassed) {
+        newProgress.notStarted.push(m.name);
+      } else {
+        newProgress.completed.push(m.name);
+      }
+    });
+    setProgress(newProgress);
+    if (persistUrlState) {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('p', moduleName);
+        window.history.replaceState(null, '', url.toString());
+      } catch (_e) {
+        // no-op
       }
     }
   }
@@ -414,11 +446,22 @@ export default function () {
     }
   }
 
+  const navigateToModule: React.Dispatch<React.SetStateAction<string>> = (value) => {
+    const name = typeof value === 'function' ? (value as (prev: string) => string)(iframeModule) : (value as string);
+    const mod = modules.find((m) => m.name === name);
+    if (mod) setDefaultTabFor(mod);
+    setProgressFor(name);
+    setIframeModule(name);
+    goToTop();
+  };
+
   function handlePrevious() {
     if (currIndex > 0) {
       setValidationMsg(null);
-      setDefaultTabFor(modules[currIndex - 1]);
-      setIframeModule(modules[currIndex - 1].name);
+      const target = modules[currIndex - 1];
+      setDefaultTabFor(target);
+      setProgressFor(target.name);
+      setIframeModule(target.name);
       goToTop();
     }
   }
@@ -433,13 +476,17 @@ export default function () {
       [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
     }
     if (res === null || res.Status === 'successful') {
+      // Clear loader immediately on successful validation to avoid getting stuck
+      setLoaderStatus({ isLoading: false, stage: null });
       if (currIndex + 1 < modules.length) {
-        setDefaultTabFor(modules[currIndex + 1]);
-        setIframeModule(modules[currIndex + 1].name);
+        const target = modules[currIndex + 1];
+        setDefaultTabFor(target);
+        setProgressFor(target.name);
+        setIframeModule(target.name);
         goToTop();
       } else {
-        setLoaderStatus({ isLoading: false, stage: null });
-        if (!session.sessionUuid) {
+        const isEmbedded = typeof window !== 'undefined' && window.self !== window.top;
+        if (!session?.sessionUuid || !isEmbedded) {
           setValidationMsg({
             title: 'Lab completed!',
             message: "You've successfully completed this lab.",
@@ -597,9 +644,16 @@ export default function () {
                 <ProgressHeader
                   sessionUuid={session?.sessionUuid}
                   modules={modules}
-                  progress={progress}
+                  progress={
+                    (progress as unknown) as {
+                      current: string;
+                      inProgress: string[];
+                      notStarted: string[];
+                      completed: string[];
+                    }
+                  }
                   expirationTime={Date.parse(session?.lifespanEnd)}
-                  setIframeModule={setIframeModule}
+                  setIframeModule={navigateToModule}
                 />
               </div>
             ) : null}
