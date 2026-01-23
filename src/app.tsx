@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import yaml from 'js-yaml';
 import fetch from 'unfetch';
-import useSWR from 'swr';
+import useSWRImmutable from 'swr/immutable';
 import {
   Alert,
   Button,
@@ -21,6 +21,20 @@ import Loading from './loading';
 import { ModuleSteps, Step, TModule, TProgress, TTab } from './types';
 
 import './app.css';
+
+function renderLimitedMarkdown(text: string): { __html: string } {
+  if (!text) return { __html: '' };
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  const withLinks = escaped.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1<\/a>');
+  const withCode = withLinks.replace(/`([^`]+)`/g, '<code>$1<\/code>');
+  const withBold = withCode.replace(/\*\*(.+?)\*\*/g, '<strong>$1<\/strong>');
+  const withItalic = withBold.replace(/\*(.+?)\*/g, '<em>$1<\/em>');
+  const withBreaks = withItalic.replace(/\n/g, '<br\/>' );
+  return { __html: withBreaks };
+}
 
 type ConfigFetchResult = {
   url: string;
@@ -91,10 +105,12 @@ const createUrlsFromVars = (vars: TTab): TTab => {
 };
 
 function isScriptAvailable(module: TModule, scriptName: Step) {
-  return !module.scripts || module.scripts.includes(scriptName);
+  if (!Array.isArray(module.scripts)) return false;
+  return module.scripts.includes(scriptName);
 }
 
-function showSolveBtn(module: TModule) {
+function showSolveBtn(module?: TModule) {
+  if (!module) return false;
   if (module.solveButton === true) return true;
   if (!module.scripts) return false;
   return isScriptAvailable(module, 'solve');
@@ -131,7 +147,7 @@ export default function () {
   } catch (_e) {
     session = null as unknown as Session;
   }
-  const { data: dataResponses, error } = useSWR(
+  const { data: dataResponses, error } = useSWRImmutable(
     ['./ui-config.yml', './zero-touch-config.yml'],
     async (urls: string[]) => {
       const results: ConfigFetchResult[] = await Promise.all(
@@ -151,7 +167,7 @@ export default function () {
       );
       return results;
     },
-    { suspense: true }
+    { suspense: true, revalidateOnFocus: false, revalidateOnReconnect: false, revalidateIfStale: false }
   );
   const baseUrls = ['./ui-config.yml', './zero-touch-config.yml'];
   if (!Array.isArray(dataResponses)) {
@@ -178,7 +194,7 @@ export default function () {
   const successfulText = hit.text as string;
   const successfulName = hit.url || './ui-config.yml';
   let config = {} as {
-    type?: 'showroom' | 'zero-touch';
+    type?: 'showroom' | 'zerotouch' | 'zero-touch';
     antora?: { modules: TModule[]; name: string; dir?: string; version: string };
     tabs?: TTab[];
   };
@@ -189,10 +205,10 @@ export default function () {
     throw new Error(pretty);
   }
   const isBasicShowroom = config.type === 'showroom';
-  const { data: configData, error: errConfig } = useSWR<ModuleSteps>(
+  const { data: configData, error: errConfig } = useSWRImmutable<ModuleSteps>(
     !successfulText || !isBasicShowroom ? API_CONFIG : null,
     silentFetcher,
-    { suspense: true }
+    { suspense: true, revalidateOnFocus: false, revalidateOnReconnect: false, revalidateIfStale: false }
   );
   const modules = config?.antora?.modules || [];
   const antoraDir = config?.antora?.dir || (isBasicShowroom ? 'www' : 'antora');
@@ -204,6 +220,13 @@ export default function () {
     title: string;
   } | null>(null);
   const tabs = config.tabs?.map((s) => createUrlsFromVars(s)) || [];
+
+  // Feature flags (with sensible defaults)
+  const skipModuleEnabled = config && Object.prototype.hasOwnProperty.call(config, 'skipModuleEnabled')
+    ? Boolean((config as any).skipModuleEnabled)
+    : true;
+  const persistUrlState =
+    isBasicShowroom && Boolean((config as any)?.persist_url_state || (config as any)?.persistUrlState);
   const PROGRESS_KEY = session ? `PROGRESS-${session.sessionUuid}` : null;
   const initProgressStr = PROGRESS_KEY ? window.localStorage.getItem(PROGRESS_KEY) : null;
   let initProgress: TProgress = null as unknown as TProgress;
@@ -220,20 +243,30 @@ export default function () {
       current: modules.length > 0 ? modules[0].name : null,
     }
   );
-  const [iframeModule, setIframeModule] = useState(progress.current || 'index');
+  const [iframeModule, setIframeModule] = useState(() => {
+    const pParam = persistUrlState ? searchParams.get('p') : null;
+    return pParam || progress.current || 'index';
+  });
   const currIndex = modules.findIndex((m) => m.name === progress.current);
-  const [currentTabName, setCurrentTabName] = useState(
-    Array.isArray(tabs) && tabs.length > 0
-      ? tabs.find((t) => !t.modules || t.modules.includes(modules[currIndex].name))?.name
-      : undefined
-  );
+  const [currentTabName, setCurrentTabName] = useState(() => {
+    const tParam = persistUrlState ? searchParams.get('t') : null;
+    const hasTabs = Array.isArray(tabs) && tabs.length > 0;
+    if (!hasTabs) return undefined;
+    const currentModuleName = modules[currIndex]?.name;
+    const tabAllowed = tParam
+      ? tabs.some((t) => t.name === tParam && (!t.modules || (currentModuleName ? t.modules.includes(currentModuleName) : true)))
+      : false;
+    if (tParam && tabAllowed) return tParam;
+    return tabs.find((t) => !t.modules || (currentModuleName ? t.modules.includes(currentModuleName) : true))?.name;
+  });
   const initialFile = `./${antoraDir}/${s_name ? s_name + '/' : ''}${version ? version + '/' : ''}${iframeModule}.html`;
   const showTabsBar =
     (tabs.length > 1 || tabs.some((t) => t.secondary_name)) && (isBasicShowroom || modules.length > 0);
   const moduleTabs = tabs.filter((t) => {
     if (!t.modules) return true;
     if (Array.isArray(t.modules) && t.modules.length > 0) {
-      if (t.modules.includes(modules[currIndex].name)) {
+      const currentModuleName = modules[currIndex]?.name;
+      if (currentModuleName && t.modules.includes(currentModuleName)) {
         return true;
       }
       return false;
@@ -262,14 +295,42 @@ export default function () {
     if (ref.current) {
       const iframe = ref.current as HTMLIFrameElement;
       if (!iframe || !iframe.contentWindow) throw new Error('No valid iframe found');
-      const page = iframe.contentWindow.location.pathname.split('/');
-      let key = '';
-      if (page[page.length - 2] === version || !version) {
-        key = page[page.length - 1].split('.')[0];
-      } else {
-        key = `${page[page.length - 2]}/${page[page.length - 1].split('.')[0]}`;
+      // Attempt to reflect the Antora page title into the parent document title
+      try {
+        const doc = (iframe as any).contentDocument || iframe.contentWindow.document;
+        if (doc && typeof doc.title === 'string' && doc.title.trim().length > 0) {
+          document.title = doc.title;
+        }
+      } catch (_e) {
+        // Cross-origin or other access issue; keep existing title
       }
-      const _progress = { ...progress };
+      const pathname = iframe.contentWindow.location.pathname;
+      const segments = pathname.split('/').filter(Boolean);
+      let key = '';
+      // Derive key as the path under /<antoraDir>/<s_name>/[<version>/], without .html
+      try {
+        const antoraIdx = segments.indexOf(antoraDir);
+        const nameIdx = antoraIdx >= 0 ? segments.indexOf(s_name, antoraIdx + 1) : -1;
+        let startIdx = nameIdx >= 0 ? nameIdx + 1 : -1;
+        if (startIdx >= 0 && version && segments[startIdx] === version) {
+          startIdx += 1;
+        }
+        if (startIdx >= 0) {
+          const relPath = segments.slice(startIdx).join('/');
+          key = relPath.replace(/\.html$/, '');
+        } else {
+          // Fallback: use last segment(s) sans extension
+          key = segments.slice(-2).join('/').replace(/\.html$/, '');
+        }
+      } catch (_e) {
+        key = segments[segments.length - 1].replace(/\.html$/, '');
+      }
+      const _progress: TProgress = {
+        inProgress: [key],
+        completed: [],
+        notStarted: [],
+        current: key,
+      };
       let pivotPassed = false;
       modules.forEach((m) => {
         if (m.name === key) {
@@ -280,8 +341,18 @@ export default function () {
           _progress.completed.push(m.name);
         }
       });
-      _progress.inProgress = [key];
-      _progress.current = key;
+      // Always update progress based on the newly loaded page
+      setProgress(_progress);
+      // Sync current documentation page to parent URL so refresh restores it (when enabled)
+      if (persistUrlState) {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.set('p', key);
+          window.history.replaceState(null, '', url.toString());
+        } catch (_e) {
+          // no-op: best-effort URL sync
+        }
+      }
       const module = modules.find((x) => x.name === key);
       if (module && isScriptAvailable(module, 'setup')) {
         setLoaderStatus({ isLoading: true, stage: 'setup' });
@@ -289,13 +360,40 @@ export default function () {
         const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
         Promise.all([executeStageAndGetStatusPromise, minTimeout])
           .then((_) => {
-            setProgress(_progress);
             setLoaderStatus({ isLoading: false, stage: null });
           })
           .catch(() => {
-            setProgress(_progress);
             setLoaderStatus({ isLoading: false, stage: null });
           });
+      }
+    }
+  }
+
+  function setProgressFor(moduleName: string) {
+    const newProgress: TProgress = {
+      inProgress: [moduleName],
+      completed: [],
+      notStarted: [],
+      current: moduleName,
+    };
+    let pivotPassed = false;
+    modules.forEach((m) => {
+      if (m.name === moduleName) {
+        pivotPassed = true;
+      } else if (pivotPassed) {
+        newProgress.notStarted.push(m.name);
+      } else {
+        newProgress.completed.push(m.name);
+      }
+    });
+    setProgress(newProgress);
+    if (persistUrlState) {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('p', moduleName);
+        window.history.replaceState(null, '', url.toString());
+      } catch (_e) {
+        // no-op
       }
     }
   }
@@ -309,6 +407,16 @@ export default function () {
       window.open(tab.url, '_blank');
     } else {
       setCurrentTabName(tab.name);
+      // Persist selected right-pane tab in URL (?t=<tabName>) when enabled
+      if (persistUrlState) {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.set('t', tab.name);
+          window.history.replaceState(null, '', url.toString());
+        } catch (_e) {
+          // no-op
+        }
+      }
     }
   }
 
@@ -323,16 +431,37 @@ export default function () {
     const currentTab = tabs.find((t) => t.name === currentTabName);
     if (Array.isArray(currentTab?.modules) && currentTab.modules.length > 0) {
       if (!currentTab.modules.includes(module.name)) {
-        setCurrentTabName(tabs.find((t) => !t.modules || t.modules.includes(module.name))?.name);
+        const nextTabName = tabs.find((t) => !t.modules || t.modules.includes(module.name))?.name;
+        setCurrentTabName(nextTabName);
+        if (persistUrlState) {
+          try {
+            const url = new URL(window.location.href);
+            if (nextTabName) url.searchParams.set('t', nextTabName);
+            window.history.replaceState(null, '', url.toString());
+          } catch (_e) {
+            // no-op
+          }
+        }
       }
     }
   }
 
+  const navigateToModule: React.Dispatch<React.SetStateAction<string>> = (value) => {
+    const name = typeof value === 'function' ? (value as (prev: string) => string)(iframeModule) : (value as string);
+    const mod = modules.find((m) => m.name === name);
+    if (mod) setDefaultTabFor(mod);
+    setProgressFor(name);
+    setIframeModule(name);
+    goToTop();
+  };
+
   function handlePrevious() {
     if (currIndex > 0) {
       setValidationMsg(null);
-      setDefaultTabFor(modules[currIndex - 1]);
-      setIframeModule(modules[currIndex - 1].name);
+      const target = modules[currIndex - 1];
+      setDefaultTabFor(target);
+      setProgressFor(target.name);
+      setIframeModule(target.name);
       goToTop();
     }
   }
@@ -347,13 +476,17 @@ export default function () {
       [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
     }
     if (res === null || res.Status === 'successful') {
+      // Clear loader immediately on successful validation to avoid getting stuck
+      setLoaderStatus({ isLoading: false, stage: null });
       if (currIndex + 1 < modules.length) {
-        setDefaultTabFor(modules[currIndex + 1]);
-        setIframeModule(modules[currIndex + 1].name);
+        const target = modules[currIndex + 1];
+        setDefaultTabFor(target);
+        setProgressFor(target.name);
+        setIframeModule(target.name);
         goToTop();
       } else {
-        setLoaderStatus({ isLoading: false, stage: null });
-        if (!session.sessionUuid) {
+        const isEmbedded = typeof window !== 'undefined' && window.self !== window.top;
+        if (!session?.sessionUuid || !isEmbedded) {
           setValidationMsg({
             title: 'Lab completed!',
             message: "You've successfully completed this lab.",
@@ -408,9 +541,32 @@ export default function () {
     }
   }
 
+  // Keep URL param ?t in sync with currentTabName for programmatic changes as well
+  useEffect(() => {
+    if (!persistUrlState) return;
+    try {
+      const url = new URL(window.location.href);
+      if (currentTabName) {
+        url.searchParams.set('t', currentTabName);
+      } else {
+        url.searchParams.delete('t');
+      }
+      window.history.replaceState(null, '', url.toString());
+    } catch (_e) {
+      // no-op
+    }
+  }, [currentTabName]);
+
   if (error) {
     return <pre style={{ whiteSpace: 'pre-wrap' }}>{(error as Error).message || 'Configuration error'}</pre>;
   }
+
+  // Determine default left/right column widths for the horizontal Split.
+  const widthFromUrl = Number(searchParams.get('w'));
+  const hasValidUrlWidth = Number.isFinite(widthFromUrl) && widthFromUrl > 0 && widthFromUrl < 100;
+  const configuredLeftWidth = hasValidUrlWidth ? widthFromUrl : Number((config as any)?.default_width);
+  const hasValidLeftWidth = Number.isFinite(configuredLeftWidth) && configuredLeftWidth > 0 && configuredLeftWidth < 100;
+  const leftPaneDefault = Math.max(10, Math.min(90, hasValidLeftWidth ? configuredLeftWidth : 25));
 
   return (
     <div>
@@ -430,7 +586,7 @@ export default function () {
         <ModalBody>
           {validationMsg ? (
             <Alert variant={validationMsg.type} title={validationMsg.title} isPlain isInline>
-              {validationMsg.message}
+              <div dangerouslySetInnerHTML={renderLimitedMarkdown(validationMsg.message)} />
             </Alert>
           ) : null}
         </ModalBody>
@@ -442,13 +598,13 @@ export default function () {
       </Modal>
       <div className="app-wrapper">
         <Split
-          sizes={moduleTabs.length > 0 ? [25, 75] : [100]}
+          sizes={moduleTabs.length > 0 ? [leftPaneDefault, 100 - leftPaneDefault] : [100]}
           minSize={100}
           gutterSize={1}
           direction="horizontal"
           cursor="col-resize"
           style={{ display: 'flex', flexDirection: 'row', resize: 'horizontal', height: '100%' }}
-          onDragEnd={() => {
+          onDragEnd={(sizes?: number[]) => {
             // Hack to fix scrollbar issue https://github.com/nathancahill/split/issues/119
             document.querySelectorAll('iframe').forEach((iframe) => {
               iframe.style.display = 'none';
@@ -456,6 +612,30 @@ export default function () {
                 iframe.style.display = 'block';
               });
             });
+            // Persist current split width to URL (?w=<percent>) so a refresh restores it
+            try {
+              if (Array.isArray(sizes) && sizes.length >= 2) {
+                const pct = Math.round(sizes[0]);
+                const clamped = Math.max(10, Math.min(90, pct));
+                const url = new URL(window.location.href);
+                url.searchParams.set('w', String(clamped));
+                window.history.replaceState(null, '', url.toString());
+              } else {
+                // Fallback DOM-based calculation (best-effort)
+                const splitRoot = (document.querySelector('.app-wrapper > div[style*="display: flex"]') ||
+                  document.querySelector('.app-wrapper > div')) as HTMLElement | null;
+                const leftPane = document.querySelector('.app-wrapper .split.left') as HTMLElement | null;
+                if (splitRoot && leftPane && splitRoot.clientWidth > 0) {
+                  const pct = Math.round((leftPane.clientWidth / splitRoot.clientWidth) * 100);
+                  const clamped = Math.max(10, Math.min(90, pct));
+                  const url = new URL(window.location.href);
+                  url.searchParams.set('w', String(clamped));
+                  window.history.replaceState(null, '', url.toString());
+                }
+              }
+            } catch (_e) {
+              // no-op: best-effort URL sync
+            }
           }}
         >
           <div className="split left" ref={instructionsPanelRef}>
@@ -464,9 +644,16 @@ export default function () {
                 <ProgressHeader
                   sessionUuid={session?.sessionUuid}
                   modules={modules}
-                  progress={progress}
+                  progress={
+                    (progress as unknown) as {
+                      current: string;
+                      inProgress: string[];
+                      notStarted: string[];
+                      completed: string[];
+                    }
+                  }
                   expirationTime={Date.parse(session?.lifespanEnd)}
-                  setIframeModule={setIframeModule}
+                  setIframeModule={navigateToModule}
                 />
               </div>
             ) : null}
@@ -478,6 +665,8 @@ export default function () {
               className="app__instructions"
               height="100%"
               allow="clipboard-write clipboard-read"
+              title={`Instructions - ${iframeModule}`}
+              aria-label={`Instructions for ${iframeModule}`}
             ></iframe>
             {!isBasicShowroom ? (
               <div className="app-iframe__inner">
@@ -527,15 +716,17 @@ export default function () {
                   </Tabs>
                   {!isBasicShowroom ? (
                     <div className="app-split-right__actions">
-                      <Button
-                        key="skip-module"
-                        variant="secondary"
-                        size="sm"
-                        onClick={skipModule}
-                        icon={<ForwardIcon />}
-                      >
-                        Skip module
-                      </Button>
+                      {skipModuleEnabled ? (
+                        <Button
+                          key="skip-module"
+                          variant="secondary"
+                          size="sm"
+                          onClick={skipModule}
+                          icon={<ForwardIcon />}
+                        >
+                          Skip module
+                        </Button>
+                      ) : null}
                       <Button key="exit-lab" variant="primary" size="sm" onClick={exitWarning}>
                         Exit
                       </Button>
@@ -558,7 +749,15 @@ export default function () {
                       style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
                     >
                       <div className="split top">
-                        <iframe src={tab.url} width="100%" height="100%" allow="clipboard-write clipboard-read" className="main-content"></iframe>
+                        <iframe
+                          src={tab.url}
+                          width="100%"
+                          height="100%"
+                          className="main-content"
+                          title={`${tab.name} - primary`}
+                          aria-label={`${tab.name} primary content`}
+                          allow="clipboard-write clipboard-read"
+                        ></iframe>
                       </div>
                       <div className="split bottom">
                         {tab.secondary_name ? (
@@ -572,6 +771,8 @@ export default function () {
                           height="100%"
                           allow="clipboard-write clipboard-read"
                           style={{ display: 'block' }}
+                          title={`${tab.secondary_name || 'Secondary'} - ${tab.name}`}
+                          aria-label={`${tab.secondary_name || 'Secondary'} content for ${tab.name}`}
                         ></iframe>
                       </div>
                     </Split>
@@ -585,6 +786,8 @@ export default function () {
                       style={{
                         ...(isTerminalTab(tab) ? { padding: '0 32px', background: '#000' } : {}),
                       }}
+                      title={`${tab.name}`}
+                      aria-label={`${tab.name} content`}
                     ></iframe>
                   )}
                 </div>

@@ -12,10 +12,10 @@ export type TTab = {
   type?: 'double-terminal' | 'terminal' | 'secondary-terminal' | 'codeserver' | 'parasol';
 };
 export type TProgress = {
-  inProgress: any[];
-  completed: any[];
+  inProgress: string[];
+  completed: string[];
   notStarted: string[];
-  current: string;
+  current: string | null;
 };
 export type Step = 'setup' | 'validation' | 'solve';
 export type ModuleSteps = {

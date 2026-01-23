@@ -71,7 +71,7 @@ export default function ({
           </ul>
         </ModalBody>
         <ModalFooter>
-          <Button key="restart" variant="primary" onClick={handleModalToggle}>
+          <Button key="close" variant="primary" onClick={handleModalToggle}>
             Close
           </Button>
           {sessionUuid ? (
