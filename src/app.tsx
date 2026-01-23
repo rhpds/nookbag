@@ -477,6 +477,7 @@ export default function () {
               width="100%"
               className="app__instructions"
               height="100%"
+              allow="clipboard-write clipboard-read"
             ></iframe>
             {!isBasicShowroom ? (
               <div className="app-iframe__inner">
@@ -557,7 +558,7 @@ export default function () {
                       style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
                     >
                       <div className="split top">
-                        <iframe src={tab.url} width="100%" height="100%" className="main-content"></iframe>
+                        <iframe src={tab.url} width="100%" height="100%" allow="clipboard-write clipboard-read" className="main-content"></iframe>
                       </div>
                       <div className="split bottom">
                         {tab.secondary_name ? (
@@ -569,6 +570,7 @@ export default function () {
                           src={tab.secondary_url}
                           width="100%"
                           height="100%"
+                          allow="clipboard-write clipboard-read"
                           style={{ display: 'block' }}
                         ></iframe>
                       </div>
@@ -579,6 +581,7 @@ export default function () {
                       src={tab.url}
                       height="100%"
                       width="100%"
+                      allow="clipboard-write clipboard-read"
                       style={{
                         ...(isTerminalTab(tab) ? { padding: '0 32px', background: '#000' } : {}),
                       }}
