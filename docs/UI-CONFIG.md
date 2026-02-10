@@ -23,6 +23,9 @@ This document describes the top-level `ui-config.yml` options and details for co
 | `antora.modules[].solveButton` | boolean | optional | Force-enable the Solve button for this module when true. |
 | `default_width` | number (0-100) | default: `25` | Left column width percentage for the main horizontal split. Right column becomes `100 - default_width`. Clamped between 10 and 90. |
 | `persist_url_state` | boolean | default: `false` | Showroom only. When true, saves and restores state via URL query params: left content page as `p`, right active tab as `t`. Alias: `persistUrlState`. |
+| `view_switcher` | boolean or object | optional (default: `false`) | Enables a toolbar at the top-right for switching between Instructions (full-width left), Split (side by side), and Tabs (full-width right) modes. Set to `true` to enable with defaults, or use an object: `{ enabled: true, default_mode: "instructions" }`. Keyboard shortcuts: Ctrl+1/2/3. View state persists via localStorage and URL hash (`#view=...`). |
+| `view_switcher.enabled` | boolean | default: `true` (when object) | Enable or disable the view switcher. |
+| `view_switcher.default_mode` | enum | default: `instructions` | Initial view mode on first visit. One of `instructions`, `split`, or `tabs`. |
 | `tabs[]` | array (tab objects) | — | Declares the tabs shown in the app. |
 | `tabs[].name` | string | required | Display label and internal key for the tab (must be unique). |
 | `tabs[].url` | string | optional | Full URL to load; if present, overrides `port`/`path` for the primary view. |
@@ -133,6 +136,39 @@ tabs:
       - module-01
       - module-03
     external: false
+```
+
+View switcher with embedded tabs
+
+```yaml
+# ui-config.yml
+
+type: showroom
+default_width: 30
+persist_url_state: true
+
+view_switcher:
+  enabled: true
+  default_mode: instructions   # start in full-width instructions
+
+tabs:
+  - name: OCP Console
+    url: https://console-openshift-console.apps.example.com
+  - name: ArgoCD
+    url: https://openshift-gitops-server-openshift-gitops.apps.example.com
+```
+
+View switcher shorthand (enable with defaults)
+
+```yaml
+# ui-config.yml
+
+type: showroom
+view_switcher: true
+
+tabs:
+  - name: Console
+    url: https://console-openshift-console.apps.example.com
 ```
 
 Disable Skip module button (zerotouch)
