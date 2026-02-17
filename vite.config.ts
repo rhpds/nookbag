@@ -10,6 +10,7 @@ export default defineConfig(({ command }) => ({
   // Use subpath when served behind Traefik at /nookbag
   base: command === 'serve' ? '/nookbag/' : './',
   server: {
+    allowedHosts: true,
     host: '0.0.0.0',
     port: 8080,
     strictPort: true,
