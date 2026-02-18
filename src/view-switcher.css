@@ -1,11 +1,19 @@
-/* View Switcher — toolbar at top-right for switching between
-   Instructions / Split / Tabs modes */
+/* View Switcher — fixed toolbar at top-right for switching between
+   Instructions / Split / Tabs modes.
+   Space is reserved in .app-split-right__top-bar (via app.css) so the
+   toolbar doesn't visually overlap the tab row. */
 
-.sr-toolbar {
+.sr-toolbar-wrapper {
   position: fixed;
   top: 8px;
   right: 12px;
-  z-index: 99999;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.sr-toolbar {
   display: flex;
   align-items: center;
   gap: 0;
@@ -63,12 +71,10 @@
   flex-shrink: 0;
 }
 
-/* First-visit hint */
+/* First-visit hint — positioned below the toolbar */
 .sr-hint {
-  position: fixed;
-  top: 48px;
-  right: 12px;
-  z-index: 99999;
+  margin-top: 6px;
+  z-index: 100;
   background: #1a1a1a;
   color: #ccc;
   font-size: 12px;
@@ -89,6 +95,17 @@
   right: 24px;
   border: 6px solid transparent;
   border-bottom-color: #1a1a1a;
+}
+
+/* Collapse to icon-only at narrow widths */
+@media (max-width: 900px) {
+  .sr-mode-btn__label {
+    display: none;
+  }
+  .sr-mode-btn {
+    padding: 7px 10px;
+    gap: 0;
+  }
 }
 
 /* Mode overrides — applied to .app-wrapper or body */

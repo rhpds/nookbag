@@ -307,7 +307,6 @@ export default function () {
     if (ref.current) {
       const iframe = ref.current as HTMLIFrameElement;
       if (!iframe || !iframe.contentWindow) throw new Error('No valid iframe found');
-      // Attempt to reflect the Antora page title into the parent document title
       try {
         const doc = (iframe as any).contentDocument || iframe.contentWindow.document;
         if (doc && typeof doc.title === 'string' && doc.title.trim().length > 0) {
@@ -615,7 +614,7 @@ export default function () {
           persistUrlState={persistUrlState}
         />
       )}
-      <div className={`app-wrapper${viewMode === 'instructions' ? ' sr-view-instructions' : ''}${viewMode === 'tabs' ? ' sr-view-tabs' : ''}`}>
+      <div className={`app-wrapper${viewMode === 'instructions' ? ' sr-view-instructions' : viewMode === 'split' ? ' sr-view-split' : viewMode === 'tabs' ? ' sr-view-tabs' : ''}`}>
         <Split
           sizes={moduleTabs.length > 0 ? [leftPaneDefault, 100 - leftPaneDefault] : [100]}
           minSize={100}
