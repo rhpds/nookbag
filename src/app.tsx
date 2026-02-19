@@ -18,6 +18,7 @@ import { ForwardIcon, RedoIcon } from '@patternfly/react-icons';
 import ProgressHeader from './progress-header';
 import { executeStageAndGetStatus, API_CONFIG, silentFetcher, exitLab, completeLab, formatYamlError } from './utils';
 import Loading from './loading';
+import ViewSwitcher, { ViewMode } from './view-switcher';
 import { ModuleSteps, Step, TModule, TProgress, TTab } from './types';
 
 import './app.css';
@@ -197,6 +198,7 @@ export default function () {
     type?: 'showroom' | 'zerotouch' | 'zero-touch';
     antora?: { modules: TModule[]; name: string; dir?: string; version: string };
     tabs?: TTab[];
+    view_switcher?: boolean | { enabled?: boolean; default_mode?: ViewMode };
   };
   try {
     config = yaml.load(successfulText) as any;
@@ -260,6 +262,16 @@ export default function () {
     return tabs.find((t) => !t.modules || (currentModuleName ? t.modules.includes(currentModuleName) : true))?.name;
   });
   const initialFile = `./${antoraDir}/${s_name ? s_name + '/' : ''}${version ? version + '/' : ''}${iframeModule}.html`;
+  // View switcher configuration
+  const viewSwitcherConfig = (config as any)?.view_switcher;
+  const viewSwitcherEnabled =
+    viewSwitcherConfig === true ||
+    (typeof viewSwitcherConfig === 'object' && viewSwitcherConfig?.enabled !== false);
+  const viewSwitcherDefaultMode: ViewMode =
+    (typeof viewSwitcherConfig === 'object' && viewSwitcherConfig?.default_mode) || 'instructions';
+  const showViewSwitcher = viewSwitcherEnabled && tabs.length > 0;
+  const [viewMode, setViewMode] = useState<ViewMode | null>(null);
+
   const showTabsBar =
     (tabs.length > 1 || tabs.some((t) => t.secondary_name)) && (isBasicShowroom || modules.length > 0);
   const moduleTabs = tabs.filter((t) => {
@@ -295,7 +307,6 @@ export default function () {
     if (ref.current) {
       const iframe = ref.current as HTMLIFrameElement;
       if (!iframe || !iframe.contentWindow) throw new Error('No valid iframe found');
-      // Attempt to reflect the Antora page title into the parent document title
       try {
         const doc = (iframe as any).contentDocument || iframe.contentWindow.document;
         if (doc && typeof doc.title === 'string' && doc.title.trim().length > 0) {
@@ -596,7 +607,14 @@ export default function () {
           </Button>
         </ModalFooter>
       </Modal>
-      <div className="app-wrapper">
+      {showViewSwitcher && (
+        <ViewSwitcher
+          defaultMode={viewSwitcherDefaultMode}
+          onModeChange={setViewMode}
+          persistUrlState={persistUrlState}
+        />
+      )}
+      <div className={`app-wrapper${viewMode === 'instructions' ? ' sr-view-instructions' : viewMode === 'split' ? ' sr-view-split' : viewMode === 'tabs' ? ' sr-view-tabs' : ''}`}>
         <Split
           sizes={moduleTabs.length > 0 ? [leftPaneDefault, 100 - leftPaneDefault] : [100]}
           minSize={100}
