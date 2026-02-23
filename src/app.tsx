@@ -682,6 +682,7 @@ export default function () {
               width="100%"
               className="app__instructions"
               height="100%"
+              allow="clipboard-write clipboard-read"
               title={`Instructions - ${iframeModule}`}
               aria-label={`Instructions for ${iframeModule}`}
             ></iframe>
@@ -773,6 +774,7 @@ export default function () {
                           className="main-content"
                           title={`${tab.name} - primary`}
                           aria-label={`${tab.name} primary content`}
+                          allow="clipboard-write clipboard-read"
                         ></iframe>
                       </div>
                       <div className="split bottom">
@@ -785,6 +787,7 @@ export default function () {
                           src={tab.secondary_url}
                           width="100%"
                           height="100%"
+                          allow="clipboard-write clipboard-read"
                           style={{ display: 'block' }}
                           title={`${tab.secondary_name || 'Secondary'} - ${tab.name}`}
                           aria-label={`${tab.secondary_name || 'Secondary'} content for ${tab.name}`}
@@ -797,6 +800,7 @@ export default function () {
                       src={tab.url}
                       height="100%"
                       width="100%"
+                      allow="clipboard-write clipboard-read"
                       style={{
                         ...(isTerminalTab(tab) ? { padding: '0 32px', background: '#000' } : {}),
                       }}
