@@ -65,7 +65,7 @@ const buttons: { mode: ViewMode; Icon: React.FC; label: string; title: string }[
   { mode: 'tabs', Icon: IcoTabs, label: 'Tabs', title: 'Full-width tabs' },
 ];
 
-export default function ViewSwitcher({ defaultMode = 'instructions', onModeChange, persistUrlState }: ViewSwitcherProps) {
+export default function ViewSwitcher({ defaultMode = 'split', onModeChange, persistUrlState }: ViewSwitcherProps) {
   const [mode, setMode] = useState<ViewMode>(() => getInitialMode(defaultMode));
 
   useEffect(() => {
