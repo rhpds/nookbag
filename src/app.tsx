@@ -268,7 +268,7 @@ export default function () {
     viewSwitcherConfig === true ||
     (typeof viewSwitcherConfig === 'object' && viewSwitcherConfig?.enabled !== false);
   const viewSwitcherDefaultMode: ViewMode =
-    (typeof viewSwitcherConfig === 'object' && viewSwitcherConfig?.default_mode) || 'instructions';
+    (typeof viewSwitcherConfig === 'object' && viewSwitcherConfig?.default_mode) || 'split';
   const showViewSwitcher = viewSwitcherEnabled && tabs.length > 0;
   const [viewMode, setViewMode] = useState<ViewMode | null>(null);
 
