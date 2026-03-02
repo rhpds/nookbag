@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi10/nodejs-22-minimal:10.0
+FROM registry.access.redhat.com/ubi10/nodejs-22-minimal:10.1
 USER root
 WORKDIR /app
 
