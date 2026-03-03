@@ -1,0 +1,14 @@
+FROM registry.access.redhat.com/ubi10/python-312-minimal:10.1
+
+USER root
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY healthz.py .
+
+USER 1001
+EXPOSE 8090
+
+CMD ["python", "healthz.py"]
