@@ -41,7 +41,11 @@ service so orchestrators (and humans) can check whether the stack is up.
    `zero-touch-config.yml`) from the nookbag service through Traefik.
 2. Probes the Antora/showroom content index page (`<content_path>/index.html`).
 3. Resolves tab URLs using type-specific defaults (terminal, codeserver,
-   parasol, etc.) and probes each one in parallel.
+   parasol, etc.) and probes each one in parallel.  Tabs with non-root
+   paths (e.g. `/wetty`, `/tty1`) are probed through the pod's reverse
+   proxy (`HEALTHZ_BASE_URL`) since they are not directly reachable on
+   `localhost`.  Direct-port services (path `/` or unset) are probed at
+   `localhost:<port>`.
 4. Returns `200` if the content page and all tabs are reachable, `503`
    otherwise.
 
