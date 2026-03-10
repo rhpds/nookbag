@@ -119,8 +119,19 @@ def to_absolute_url(raw: str) -> str | None:
     return None
 
 
+def _is_proxied_path(path: str | None) -> bool:
+    """True when *path* is a non-root route served by the pod's reverse proxy."""
+    return bool(path) and path != "/"
+
+
 def resolve_tab_urls(tab: dict) -> list[tuple[str, str | None]]:
-    """Return a list of (label, url) pairs for a tab config entry."""
+    """Return a list of (label, url) pairs for a tab config entry.
+
+    Non-root paths (e.g. ``/wetty``, ``/tty1``) are assumed to be served
+    through the pod's reverse proxy (nginx / Traefik) and are probed via
+    ``BASE_URL``.  Direct-port services (path ``/`` or unset) are probed
+    at ``localhost:<port>``.
+    """
     t = apply_tab_defaults(tab)
     results: list[tuple[str, str | None]] = []
 
@@ -128,6 +139,8 @@ def resolve_tab_urls(tab: dict) -> list[tuple[str, str | None]]:
     url: str | None = None
     if t.get("url"):
         url = to_absolute_url(t["url"])
+    elif _is_proxied_path(t.get("path")):
+        url = f"{BASE_URL}{t['path']}"
     elif t.get("port"):
         proto = "https" if t["port"] in ("443", "8443") else "http"
         url = f"{proto}://localhost:{t['port']}{t.get('path', '')}"
@@ -137,6 +150,8 @@ def resolve_tab_urls(tab: dict) -> list[tuple[str, str | None]]:
     sec_url: str | None = None
     if t.get("secondary_url"):
         sec_url = to_absolute_url(t["secondary_url"])
+    elif _is_proxied_path(t.get("secondary_path")):
+        sec_url = f"{BASE_URL}{t['secondary_path']}"
     elif t.get("secondary_path") and (t.get("secondary_port") or t.get("port")):
         port = t.get("secondary_port") or t["port"]
         proto = "https" if port in ("443", "8443") else "http"
