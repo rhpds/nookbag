@@ -1,16 +1,12 @@
-/* View Switcher — fixed toolbar at top-right for switching between
+/* View Switcher — draggable floating toolbar for switching between
    Instructions / Split / Tabs modes.
-   Space is reserved in .app-split-right__top-bar (via app.css) so the
-   toolbar doesn't visually overlap the tab row. */
+   Default position: bottom-center. User can drag to reposition;
+   position is persisted to localStorage under 'sr-toolbar-pos'. */
 
 .sr-toolbar-wrapper {
   position: fixed;
-  top: 8px;
-  right: 12px;
   z-index: 100;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  /* left/top are set via inline style from React state */
 }
 
 .sr-toolbar {
@@ -22,6 +18,36 @@
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.08);
   padding: 3px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Drag handle — grip dots on the left of the toolbar */
+.sr-drag-handle {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px 4px 6px;
+  cursor: grab;
+  color: #555;
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  margin-right: 2px;
+  border-radius: 5px 0 0 5px;
+  transition: color 0.15s;
+}
+
+.sr-drag-handle:hover {
+  color: #aaa;
+}
+
+.sr-drag-handle svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* Applied to body during drag to enforce grab cursor everywhere */
+body.sr-dragging,
+body.sr-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
 }
 
 .sr-mode-btn {
@@ -71,32 +97,6 @@
   flex-shrink: 0;
 }
 
-/* First-visit hint — positioned below the toolbar */
-.sr-hint {
-  margin-top: 6px;
-  z-index: 100;
-  background: #1a1a1a;
-  color: #ccc;
-  font-size: 12px;
-  padding: 8px 14px;
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  white-space: nowrap;
-  opacity: 1;
-  transition: opacity 0.5s;
-  pointer-events: none;
-}
-
-.sr-hint::before {
-  content: '';
-  position: absolute;
-  bottom: 100%;
-  right: 24px;
-  border: 6px solid transparent;
-  border-bottom-color: #1a1a1a;
-}
-
 /* Collapse to icon-only at narrow widths */
 @media (max-width: 900px) {
   .sr-mode-btn__label {
@@ -108,7 +108,7 @@
   }
 }
 
-/* Mode overrides — applied to .app-wrapper or body */
+/* Mode overrides — applied to .app-wrapper */
 /* These use CSS to hide/show panes without touching Split.js inline styles */
 
 .sr-view-instructions .split.right,

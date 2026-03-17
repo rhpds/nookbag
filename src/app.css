@@ -229,15 +229,6 @@ iframe {
   border-bottom: 1px solid #6a6e73;
 }
 
-/* When the view switcher is active, reserve space so tabs don't go under it */
-.sr-view-split .app-split-right__top-bar {
-  padding-right: 300px;
-}
-@media (max-width: 900px) {
-  .sr-view-split .app-split-right__top-bar {
-    padding-right: 140px;
-  }
-}
 .app-split-right__tabs {
   height: 100%;
 }
