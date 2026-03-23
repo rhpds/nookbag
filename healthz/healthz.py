@@ -54,6 +54,10 @@ CONFIG_FILES = ["ui-config.yml", "zero-touch-config.yml"]
 
 PROBE_TIMEOUT = _env_int("HEALTHZ_PROBE_TIMEOUT", "5")
 
+# Upper bound on total wall-clock time for a single readiness check.
+# Should be >= ceil(max_tabs / PROBE_WORKERS) * PROBE_TIMEOUT.
+READINESS_TIMEOUT = _env_int("HEALTHZ_READINESS_TIMEOUT", "15")
+
 # Virtual-host header sent with every request to BASE_URL.
 # Required when Traefik uses Host()-based routing and the BASE_URL hostname
 # (e.g. "reverse-proxy") does not match the public domain.
@@ -191,7 +195,7 @@ def _check_iframe_headers(headers) -> bool:
             lower = directive.strip().lower()
             if lower.startswith("frame-ancestors"):
                 value = lower[len("frame-ancestors"):].strip()
-                if value == "'none'" or "*" not in value:
+                if value == "'none'":
                     return True
 
     return False
@@ -279,6 +283,8 @@ def check_readiness() -> tuple[int, dict]:
 
 def _check_readiness_impl() -> tuple[int, dict]:
     """Run all readiness checks and return (status_code, body)."""
+    deadline = time.monotonic() + READINESS_TIMEOUT
+
     config, config_file = fetch_config()
 
     if config is None:
@@ -311,7 +317,7 @@ def _check_readiness_impl() -> tuple[int, dict]:
     for tab in tabs:
         entries.extend(resolve_tab_urls(tab))
 
-    # Probe tabs in parallel
+    # Probe tabs in parallel with an overall deadline
     tab_results: list[dict] = []
     with ThreadPoolExecutor(max_workers=PROBE_WORKERS) as pool:
         futures = {
@@ -319,17 +325,31 @@ def _check_readiness_impl() -> tuple[int, dict]:
             for idx, (label, url) in enumerate(entries)
         }
         ordered: dict[int, dict] = {}
-        for future in as_completed(futures):
-            idx = futures[future]
-            try:
-                ordered[idx] = future.result()
-            except Exception as exc:
+        remaining = deadline - time.monotonic()
+        try:
+            for future in as_completed(futures, timeout=max(remaining, 0)):
+                idx = futures[future]
+                try:
+                    ordered[idx] = future.result()
+                except Exception as exc:
+                    label, url = entries[idx]
+                    ordered[idx] = {
+                        "name": label,
+                        "url": url,
+                        "reachable": False,
+                        "error": f"probe exception: {exc}",
+                    }
+        except TimeoutError:
+            LOG.warning("readiness check exceeded %ds deadline", READINESS_TIMEOUT)
+
+        for idx in range(len(entries)):
+            if idx not in ordered:
                 label, url = entries[idx]
                 ordered[idx] = {
                     "name": label,
                     "url": url,
                     "reachable": False,
-                    "error": f"probe exception: {exc}",
+                    "error": "readiness timeout exceeded",
                 }
         tab_results = [ordered[i] for i in sorted(ordered)]
 
@@ -387,10 +407,11 @@ class HealthHandler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def _head_response(self, code: int):
-        """Send headers only, no body (RFC 9110 HEAD semantics)."""
+        """Send headers only, no body (RFC 9110 Section 9.3.2)."""
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Content-Length", "0")
         self.end_headers()
 
     def log_message(self, format, *args):
@@ -408,7 +429,13 @@ def main():
     # Handle SIGTERM for graceful container shutdown (orchestrators send
     # SIGTERM, not SIGINT).  shutdown() must be called from a thread other
     # than the one running serve_forever().
+    _shutting_down = False
+
     def _shutdown(signum, _frame):
+        nonlocal _shutting_down
+        if _shutting_down:
+            return
+        _shutting_down = True
         LOG.info("received signal %s, shutting down", signum)
         threading.Thread(target=server.shutdown, daemon=True).start()
 
