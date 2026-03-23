@@ -180,6 +180,23 @@ def _headers_for(url: str) -> dict[str, str]:
     return hdrs
 
 
+def _check_iframe_headers(headers) -> bool:
+    """Return True if response headers block iframe embedding."""
+    xfo = (headers.get("X-Frame-Options") or "").strip().upper()
+    if xfo in ("DENY", "SAMEORIGIN"):
+        return True
+
+    for csp_value in (headers.get_all("Content-Security-Policy") or []):
+        for directive in csp_value.split(";"):
+            lower = directive.strip().lower()
+            if lower.startswith("frame-ancestors"):
+                value = lower[len("frame-ancestors"):].strip()
+                if value == "'none'" or "*" not in value:
+                    return True
+
+    return False
+
+
 def probe_url(url: str) -> dict:
     """Probe a URL with HEAD, falling back to GET on 405 Method Not Allowed."""
     ctx = _insecure_ctx if url.startswith("https") else None
@@ -190,7 +207,10 @@ def probe_url(url: str) -> dict:
                 code = resp.getcode()
                 if code == 405 and method == "HEAD":
                     continue
-                return {"reachable": 200 <= code < 400, "statusCode": code}
+                result: dict = {"reachable": 200 <= code < 400, "statusCode": code}
+                if _check_iframe_headers(resp.headers):
+                    result["iframeBlocked"] = True
+                return result
         except URLError as exc:
             reason = str(getattr(exc, "reason", exc))
             if "405" in reason and method == "HEAD":
@@ -315,7 +335,10 @@ def _check_readiness_impl() -> tuple[int, dict]:
 
     all_healthy = (
         content_result.get("reachable", False)
-        and (len(tab_results) == 0 or all(t.get("reachable") for t in tab_results))
+        and (len(tab_results) == 0 or all(
+            t.get("reachable") and not t.get("iframeBlocked")
+            for t in tab_results
+        ))
     )
 
     status_code = 200 if all_healthy else 503
