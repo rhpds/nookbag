@@ -54,6 +54,11 @@ CONFIG_FILES = ["ui-config.yml", "zero-touch-config.yml"]
 
 PROBE_TIMEOUT = _env_int("HEALTHZ_PROBE_TIMEOUT", "5")
 
+# Virtual-host header sent with every request to BASE_URL.
+# Required when Traefik uses Host()-based routing and the BASE_URL hostname
+# (e.g. "reverse-proxy") does not match the public domain.
+PROBE_HOST = os.environ.get("HEALTHZ_HOST", "")
+
 # Maximum number of concurrent probe requests.
 PROBE_WORKERS = _env_int("HEALTHZ_PROBE_WORKERS", "8")
 
@@ -167,12 +172,20 @@ def resolve_tab_urls(tab: dict) -> list[tuple[str, str | None]]:
 # Probing
 # ---------------------------------------------------------------------------
 
+def _headers_for(url: str) -> dict[str, str]:
+    """Return request headers, adding a Host override for BASE_URL targets."""
+    hdrs: dict[str, str] = {"User-Agent": USER_AGENT}
+    if PROBE_HOST and url.startswith(BASE_URL):
+        hdrs["Host"] = PROBE_HOST
+    return hdrs
+
+
 def probe_url(url: str) -> dict:
     """Probe a URL with HEAD, falling back to GET on 405 Method Not Allowed."""
     ctx = _insecure_ctx if url.startswith("https") else None
     for method in ("HEAD", "GET"):
         try:
-            req = Request(url, method=method, headers={"User-Agent": USER_AGENT})
+            req = Request(url, method=method, headers=_headers_for(url))
             with urlopen(req, timeout=PROBE_TIMEOUT, context=ctx) as resp:
                 code = resp.getcode()
                 if code == 405 and method == "HEAD":
@@ -193,7 +206,7 @@ def fetch_config() -> tuple[dict | None, str | None]:
     for filename in CONFIG_FILES:
         url = f"{BASE_URL}{NOOKBAG_BASE}/{filename}"
         try:
-            req = Request(url, method="GET", headers={"User-Agent": USER_AGENT})
+            req = Request(url, method="GET", headers=_headers_for(url))
             with urlopen(req, timeout=PROBE_TIMEOUT) as resp:
                 if resp.getcode() == 200:
                     data = resp.read(MAX_CONFIG_SIZE + 1)
@@ -379,7 +392,7 @@ def main():
     signal.signal(signal.SIGTERM, _shutdown)
 
     LOG.info("healthz listening on :%d", LISTEN_PORT)
-    LOG.info("base_url=%s  nookbag_base=%s", BASE_URL, NOOKBAG_BASE)
+    LOG.info("base_url=%s  nookbag_base=%s  host=%s", BASE_URL, NOOKBAG_BASE, PROBE_HOST or "(from url)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
