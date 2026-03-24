@@ -54,6 +54,15 @@ CONFIG_FILES = ["ui-config.yml", "zero-touch-config.yml"]
 
 PROBE_TIMEOUT = _env_int("HEALTHZ_PROBE_TIMEOUT", "5")
 
+# Upper bound on total wall-clock time for a single readiness check.
+# Should be >= ceil(max_tabs / PROBE_WORKERS) * PROBE_TIMEOUT.
+READINESS_TIMEOUT = _env_int("HEALTHZ_READINESS_TIMEOUT", "15")
+
+# Virtual-host header sent with every request to BASE_URL.
+# Required when Traefik uses Host()-based routing and the BASE_URL hostname
+# (e.g. "reverse-proxy") does not match the public domain.
+PROBE_HOST = os.environ.get("HEALTHZ_HOST", "")
+
 # Maximum number of concurrent probe requests.
 PROBE_WORKERS = _env_int("HEALTHZ_PROBE_WORKERS", "8")
 
@@ -167,17 +176,45 @@ def resolve_tab_urls(tab: dict) -> list[tuple[str, str | None]]:
 # Probing
 # ---------------------------------------------------------------------------
 
+def _headers_for(url: str) -> dict[str, str]:
+    """Return request headers, adding a Host override for BASE_URL targets."""
+    hdrs: dict[str, str] = {"User-Agent": USER_AGENT}
+    if PROBE_HOST and url.startswith(BASE_URL):
+        hdrs["Host"] = PROBE_HOST
+    return hdrs
+
+
+def _check_iframe_headers(headers) -> bool:
+    """Return True if response headers block iframe embedding."""
+    xfo = (headers.get("X-Frame-Options") or "").strip().upper()
+    if xfo in ("DENY", "SAMEORIGIN"):
+        return True
+
+    for csp_value in (headers.get_all("Content-Security-Policy") or []):
+        for directive in csp_value.split(";"):
+            lower = directive.strip().lower()
+            if lower.startswith("frame-ancestors"):
+                value = lower[len("frame-ancestors"):].strip()
+                if value == "'none'":
+                    return True
+
+    return False
+
+
 def probe_url(url: str) -> dict:
     """Probe a URL with HEAD, falling back to GET on 405 Method Not Allowed."""
     ctx = _insecure_ctx if url.startswith("https") else None
     for method in ("HEAD", "GET"):
         try:
-            req = Request(url, method=method, headers={"User-Agent": USER_AGENT})
+            req = Request(url, method=method, headers=_headers_for(url))
             with urlopen(req, timeout=PROBE_TIMEOUT, context=ctx) as resp:
                 code = resp.getcode()
                 if code == 405 and method == "HEAD":
                     continue
-                return {"reachable": 200 <= code < 400, "statusCode": code}
+                result: dict = {"reachable": 200 <= code < 400, "statusCode": code}
+                if _check_iframe_headers(resp.headers):
+                    result["iframeBlocked"] = True
+                return result
         except URLError as exc:
             reason = str(getattr(exc, "reason", exc))
             if "405" in reason and method == "HEAD":
@@ -193,7 +230,7 @@ def fetch_config() -> tuple[dict | None, str | None]:
     for filename in CONFIG_FILES:
         url = f"{BASE_URL}{NOOKBAG_BASE}/{filename}"
         try:
-            req = Request(url, method="GET", headers={"User-Agent": USER_AGENT})
+            req = Request(url, method="GET", headers=_headers_for(url))
             with urlopen(req, timeout=PROBE_TIMEOUT) as resp:
                 if resp.getcode() == 200:
                     data = resp.read(MAX_CONFIG_SIZE + 1)
@@ -246,6 +283,8 @@ def check_readiness() -> tuple[int, dict]:
 
 def _check_readiness_impl() -> tuple[int, dict]:
     """Run all readiness checks and return (status_code, body)."""
+    deadline = time.monotonic() + READINESS_TIMEOUT
+
     config, config_file = fetch_config()
 
     if config is None:
@@ -278,7 +317,7 @@ def _check_readiness_impl() -> tuple[int, dict]:
     for tab in tabs:
         entries.extend(resolve_tab_urls(tab))
 
-    # Probe tabs in parallel
+    # Probe tabs in parallel with an overall deadline
     tab_results: list[dict] = []
     with ThreadPoolExecutor(max_workers=PROBE_WORKERS) as pool:
         futures = {
@@ -286,23 +325,40 @@ def _check_readiness_impl() -> tuple[int, dict]:
             for idx, (label, url) in enumerate(entries)
         }
         ordered: dict[int, dict] = {}
-        for future in as_completed(futures):
-            idx = futures[future]
-            try:
-                ordered[idx] = future.result()
-            except Exception as exc:
+        remaining = deadline - time.monotonic()
+        try:
+            for future in as_completed(futures, timeout=max(remaining, 0)):
+                idx = futures[future]
+                try:
+                    ordered[idx] = future.result()
+                except Exception as exc:
+                    label, url = entries[idx]
+                    ordered[idx] = {
+                        "name": label,
+                        "url": url,
+                        "reachable": False,
+                        "error": f"probe exception: {exc}",
+                    }
+        except TimeoutError:
+            LOG.warning("readiness check exceeded %ds deadline", READINESS_TIMEOUT)
+
+        for idx in range(len(entries)):
+            if idx not in ordered:
                 label, url = entries[idx]
                 ordered[idx] = {
                     "name": label,
                     "url": url,
                     "reachable": False,
-                    "error": f"probe exception: {exc}",
+                    "error": "readiness timeout exceeded",
                 }
         tab_results = [ordered[i] for i in sorted(ordered)]
 
     all_healthy = (
         content_result.get("reachable", False)
-        and (len(tab_results) == 0 or all(t.get("reachable") for t in tab_results))
+        and (len(tab_results) == 0 or all(
+            t.get("reachable") and not t.get("iframeBlocked")
+            for t in tab_results
+        ))
     )
 
     status_code = 200 if all_healthy else 503
@@ -351,10 +407,11 @@ class HealthHandler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def _head_response(self, code: int):
-        """Send headers only, no body (RFC 9110 HEAD semantics)."""
+        """Send headers only, no body (RFC 9110 Section 9.3.2)."""
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Content-Length", "0")
         self.end_headers()
 
     def log_message(self, format, *args):
@@ -372,14 +429,20 @@ def main():
     # Handle SIGTERM for graceful container shutdown (orchestrators send
     # SIGTERM, not SIGINT).  shutdown() must be called from a thread other
     # than the one running serve_forever().
+    _shutting_down = False
+
     def _shutdown(signum, _frame):
+        nonlocal _shutting_down
+        if _shutting_down:
+            return
+        _shutting_down = True
         LOG.info("received signal %s, shutting down", signum)
         threading.Thread(target=server.shutdown, daemon=True).start()
 
     signal.signal(signal.SIGTERM, _shutdown)
 
     LOG.info("healthz listening on :%d", LISTEN_PORT)
-    LOG.info("base_url=%s  nookbag_base=%s", BASE_URL, NOOKBAG_BASE)
+    LOG.info("base_url=%s  nookbag_base=%s  host=%s", BASE_URL, NOOKBAG_BASE, PROBE_HOST or "(from url)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
