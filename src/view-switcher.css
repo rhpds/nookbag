@@ -5,8 +5,12 @@
 
 .sr-toolbar-wrapper {
   position: fixed;
+  left: 0;
+  top: 0;
   z-index: 100;
-  /* left/top are set via inline style from React state */
+  /* Position applied via transform: translate(x, y) — GPU-composited, no layout reflow */
+  will-change: transform;
+  touch-action: none;
 }
 
 .sr-toolbar {
@@ -24,23 +28,28 @@
 .sr-drag-handle {
   display: flex;
   align-items: center;
-  padding: 4px 8px 4px 6px;
+  padding: 6px 10px 6px 8px;
   cursor: grab;
   color: #555;
   border-right: 1px solid rgba(255, 255, 255, 0.12);
   margin-right: 2px;
   border-radius: 5px 0 0 5px;
   transition: color 0.15s;
+  /* Larger hit area so it's easier to grab */
+  min-width: 28px;
+  justify-content: center;
 }
 
 .sr-drag-handle:hover {
-  color: #aaa;
+  color: #bbb;
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .sr-drag-handle svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
+  pointer-events: none;
 }
 
 /* Applied to body during drag to enforce grab cursor everywhere */
