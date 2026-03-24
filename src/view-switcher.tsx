@@ -19,12 +19,24 @@ function clamp(val: number, min: number, max: number) {
   return Math.max(min, Math.min(max, val));
 }
 
-function getDefaultPos(): Pos {
-  // Bottom-center, 16px from bottom edge
+// Toolbar approximate dimensions for clamping
+const TOOLBAR_W = 280;
+const TOOLBAR_H = 44;
+const MARGIN = 8;
+
+function clampPos(x: number, y: number): Pos {
   return {
-    x: Math.max(0, window.innerWidth / 2 - 150),
-    y: Math.max(0, window.innerHeight - 56),
+    x: clamp(x, MARGIN, window.innerWidth  - TOOLBAR_W - MARGIN),
+    y: clamp(y, MARGIN, window.innerHeight - TOOLBAR_H - MARGIN),
   };
+}
+
+function getDefaultPos(): Pos {
+  // Bottom-center, just above the browser chrome
+  return clampPos(
+    window.innerWidth / 2 - TOOLBAR_W / 2,
+    window.innerHeight - TOOLBAR_H - 24,
+  );
 }
 
 function getSavedPos(): Pos | null {
@@ -32,7 +44,15 @@ function getSavedPos(): Pos | null {
     const raw = window.localStorage.getItem(POS_KEY);
     if (!raw) return null;
     const p = JSON.parse(raw);
-    if (typeof p.x === 'number' && typeof p.y === 'number') return p;
+    if (typeof p.x !== 'number' || typeof p.y !== 'number') return null;
+    // Validate against current viewport — discard if out of bounds
+    const clamped = clampPos(p.x, p.y);
+    if (Math.abs(clamped.x - p.x) > 200 || Math.abs(clamped.y - p.y) > 200) {
+      // Position is wildly off-screen — discard it
+      window.localStorage.removeItem(POS_KEY);
+      return null;
+    }
+    return clamped;
   } catch (_e) {}
   return null;
 }
@@ -90,9 +110,7 @@ function getInitialMode(defaultMode: ViewMode): ViewMode {
   try {
     const fromStore = window.localStorage.getItem(STORE_KEY);
     if (isViewMode(fromStore)) return fromStore;
-  } catch (_e) {
-    // localStorage unavailable
-  }
+  } catch (_e) {}
   return defaultMode;
 }
 
@@ -106,57 +124,83 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
   const [mode, setMode] = useState<ViewMode>(() => getInitialMode(defaultMode));
   const [pos, setPos] = useState<Pos>(() => getSavedPos() ?? getDefaultPos());
 
-  // posRef lets the document-level mouseup handler read current position
-  // without a stale closure (handlers are registered once with empty deps).
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const posRef = useRef(pos);
   useEffect(() => { posRef.current = pos; }, [pos]);
 
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const dragOrigin = useRef<{ mouseX: number; mouseY: number; elemX: number; elemY: number } | null>(null);
-
-  // Register drag handlers on document so dragging outside the element works
+  // Re-clamp position when the window is resized so the toolbar never goes off-screen
   useEffect(() => {
-    function onMouseMove(e: MouseEvent) {
-      if (!dragOrigin.current || !wrapperRef.current) return;
-      const dx = e.clientX - dragOrigin.current.mouseX;
-      const dy = e.clientY - dragOrigin.current.mouseY;
-      // Apply directly to DOM — bypasses React re-render per frame for smoothness
-      wrapperRef.current.style.left = `${dragOrigin.current.elemX + dx}px`;
-      wrapperRef.current.style.top  = `${dragOrigin.current.elemY + dy}px`;
-    }
-
-    function onMouseUp(e: MouseEvent) {
-      if (!dragOrigin.current) return;
-      const dx = e.clientX - dragOrigin.current.mouseX;
-      const dy = e.clientY - dragOrigin.current.mouseY;
-      const newX = clamp(dragOrigin.current.elemX + dx, 0, window.innerWidth  - 80);
-      const newY = clamp(dragOrigin.current.elemY + dy, 0, window.innerHeight - 40);
-      dragOrigin.current = null;
-      document.body.classList.remove('sr-dragging');
-      const newPos = { x: newX, y: newY };
-      setPos(newPos);
+    function onResize() {
+      const clamped = clampPos(posRef.current.x, posRef.current.y);
+      setPos(clamped);
       try {
-        window.localStorage.setItem(POS_KEY, JSON.stringify(newPos));
+        window.localStorage.setItem(POS_KEY, JSON.stringify(clamped));
       } catch (_e) {}
     }
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup',   onMouseUp);
-    return () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup',   onMouseUp);
-    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  function onDragHandleMouseDown(e: React.MouseEvent) {
+  // Drag state held in a ref — avoids stale closures and skips React re-renders during drag
+  const drag = useRef<{
+    pointerId: number;
+    startPointerX: number;
+    startPointerY: number;
+    startElemX: number;
+    startElemY: number;
+  } | null>(null);
+
+  // Apply transform directly — GPU-composited, no layout reflow
+  function applyTransform(x: number, y: number) {
+    if (wrapperRef.current) {
+      wrapperRef.current.style.transform = `translate(${x}px, ${y}px)`;
+    }
+  }
+
+  // Sync transform whenever pos state changes
+  useEffect(() => {
+    applyTransform(pos.x, pos.y);
+  }, [pos]);
+
+  // Pointer capture approach — no document-level listeners needed.
+  // All pointer events (move, up, cancel) are automatically routed to the
+  // capturing element even if the pointer leaves the window.
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     e.preventDefault();
+    (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
     document.body.classList.add('sr-dragging');
-    dragOrigin.current = {
-      mouseX: e.clientX,
-      mouseY: e.clientY,
-      elemX:  posRef.current.x,
-      elemY:  posRef.current.y,
+    drag.current = {
+      pointerId:     e.pointerId,
+      startPointerX: e.clientX,
+      startPointerY: e.clientY,
+      startElemX:    pos.x,
+      startElemY:    pos.y,
     };
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!drag.current) return;
+    const dx = e.clientX - drag.current.startPointerX;
+    const dy = e.clientY - drag.current.startPointerY;
+    const { x, y } = clampPos(drag.current.startElemX + dx, drag.current.startElemY + dy);
+    // Direct DOM update — smooth, no React re-render per frame
+    applyTransform(x, y);
+  }
+
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    if (!drag.current) return;
+    document.body.classList.remove('sr-dragging');
+    const dx = e.clientX - drag.current.startPointerX;
+    const dy = e.clientY - drag.current.startPointerY;
+    drag.current = null;
+    const newPos = clampPos(
+      pos.x + dx,
+      pos.y + dy,
+    );
+    setPos(newPos);
+    try {
+      window.localStorage.setItem(POS_KEY, JSON.stringify(newPos));
+    } catch (_e) {}
   }
 
   useEffect(() => {
@@ -181,12 +225,14 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
     <div
       ref={wrapperRef}
       className="sr-toolbar-wrapper"
-      style={{ left: pos.x, top: pos.y }}
     >
-      <div className="sr-toolbar" onClick={() => window.focus()} role="toolbar" aria-label="View mode switcher">
+      <div className="sr-toolbar" role="toolbar" aria-label="View mode switcher">
         <div
           className="sr-drag-handle"
-          onMouseDown={onDragHandleMouseDown}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
           title="Drag to reposition"
         >
           <IcoDrag />
