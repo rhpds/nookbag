@@ -1,17 +1,47 @@
-/* View Switcher — draggable floating toolbar for switching between
-   Instructions / Split / Tabs modes.
-   Default position: bottom-center. User can drag to reposition;
-   position is persisted to localStorage under 'sr-toolbar-pos'. */
+/*
+ * view-switcher.css
+ *
+ * Styles for the draggable floating toolbar that lets users switch between
+ * Instructions / Split / Tabs layout modes.
+ *
+ * Positioning strategy
+ * --------------------
+ * The wrapper is fixed at (left:0, top:0) in the viewport. Actual position
+ * is applied via CSS transform: translate(x, y) from JavaScript. This is
+ * intentional — transforms are GPU-composited and do not trigger layout
+ * recalculation on every frame the way left/top changes would.
+ *
+ * Drag lifecycle (set by ViewSwitcher component)
+ * -----------------------------------------------
+ *   pointerdown on .sr-drag-handle → body gets .sr-dragging (grabbing cursor)
+ *   pointermove → transform updated directly on the DOM (no React re-render)
+ *   pointerup   → .sr-dragging removed, React state and localStorage updated
+ *
+ * Mode overrides
+ * --------------
+ * Switching modes adds .sr-view-{mode} to .app-wrapper. CSS then shows/hides
+ * split panes without touching Split.js inline styles (which would fight back).
+ */
+
+/* ── Toolbar wrapper ─────────────────────────────────────────────────────── */
 
 .sr-toolbar-wrapper {
   position: fixed;
   left: 0;
   top: 0;
   z-index: 100;
-  /* Position applied via transform: translate(x, y) — GPU-composited, no layout reflow */
+  /*
+   * transform: translate(x, y) is written by JavaScript to position the toolbar.
+   * will-change tells the browser to promote this element to its own compositor
+   * layer up front, so transform updates don't cause repaints of other layers.
+   * touch-action: none lets our pointer handlers work on touch screens without
+   * the browser trying to scroll the page at the same time.
+   */
   will-change: transform;
   touch-action: none;
 }
+
+/* ── Toolbar pill ────────────────────────────────────────────────────────── */
 
 .sr-toolbar {
   display: flex;
@@ -24,10 +54,14 @@
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Drag handle — grip dots on the left of the toolbar */
+/* ── Drag handle ─────────────────────────────────────────────────────────── */
+
 .sr-drag-handle {
   display: flex;
   align-items: center;
+  justify-content: center;
+  /* Generous padding gives a larger hit target — easier to grab accurately */
+  min-width: 28px;
   padding: 6px 10px 6px 8px;
   cursor: grab;
   color: #555;
@@ -35,9 +69,6 @@
   margin-right: 2px;
   border-radius: 5px 0 0 5px;
   transition: color 0.15s;
-  /* Larger hit area so it's easier to grab */
-  min-width: 28px;
-  justify-content: center;
 }
 
 .sr-drag-handle:hover {
@@ -49,15 +80,27 @@
   width: 16px;
   height: 16px;
   flex-shrink: 0;
+  /* pointer-events: none prevents the SVG from intercepting pointer events
+     that should be handled by the parent .sr-drag-handle div */
   pointer-events: none;
 }
 
-/* Applied to body during drag to enforce grab cursor everywhere */
+/* ── Global drag state ───────────────────────────────────────────────────── */
+
+/*
+ * While dragging, body gets .sr-dragging so the grabbing cursor applies
+ * everywhere on the page — not just over the handle. Without this, moving
+ * the pointer quickly over other elements causes the cursor to flicker back
+ * to the default arrow cursor.
+ * user-select: none prevents text being accidentally selected during drag.
+ */
 body.sr-dragging,
 body.sr-dragging * {
   cursor: grabbing !important;
   user-select: none !important;
 }
+
+/* ── Mode buttons ────────────────────────────────────────────────────────── */
 
 .sr-mode-btn {
   display: flex;
@@ -81,6 +124,7 @@ body.sr-dragging * {
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* Active button uses Red Hat red to match brand */
 .sr-mode-btn.sr-active {
   color: #fff;
   background: #ee0000;
@@ -99,6 +143,8 @@ body.sr-dragging * {
   flex-shrink: 0;
 }
 
+/* ── Separator between buttons ───────────────────────────────────────────── */
+
 .sr-sep {
   width: 1px;
   height: 18px;
@@ -106,7 +152,12 @@ body.sr-dragging * {
   flex-shrink: 0;
 }
 
-/* Collapse to icon-only at narrow widths */
+/* ── Responsive: collapse to icon-only on narrow viewports ──────────────── */
+
+/*
+ * Below 900px the label text disappears and padding tightens.
+ * The icons still convey the mode — labels are supplementary.
+ */
 @media (max-width: 900px) {
   .sr-mode-btn__label {
     display: none;
@@ -117,9 +168,19 @@ body.sr-dragging * {
   }
 }
 
-/* Mode overrides — applied to .app-wrapper */
-/* These use CSS to hide/show panes without touching Split.js inline styles */
+/* ── Mode overrides ──────────────────────────────────────────────────────── */
 
+/*
+ * These classes are toggled on .app-wrapper by the ViewSwitcher component.
+ * We use CSS to show/hide panes rather than modifying Split.js state because
+ * Split.js stores widths in inline styles — changing them from outside its API
+ * causes conflicts when the user resizes the gutter.
+ *
+ * The !important overrides are needed because Split.js sets inline styles
+ * which have higher specificity than class-based rules.
+ */
+
+/* Instructions mode: hide right pane and gutter, expand left to full width */
 .sr-view-instructions .split.right,
 .sr-view-instructions .gutter.gutter-horizontal {
   display: none !important;
@@ -130,6 +191,7 @@ body.sr-dragging * {
   max-width: 100% !important;
 }
 
+/* Tabs mode: hide left pane and gutter, expand right to full width */
 .sr-view-tabs .split.left,
 .sr-view-tabs .gutter.gutter-horizontal {
   display: none !important;
