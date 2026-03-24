@@ -1,17 +1,47 @@
-/* View Switcher — fixed toolbar at top-right for switching between
-   Instructions / Split / Tabs modes.
-   Space is reserved in .app-split-right__top-bar (via app.css) so the
-   toolbar doesn't visually overlap the tab row. */
+/*
+ * view-switcher.css
+ *
+ * Styles for the draggable floating toolbar that lets users switch between
+ * Instructions / Split / Tabs layout modes.
+ *
+ * Positioning strategy
+ * --------------------
+ * The wrapper is fixed at (left:0, top:0) in the viewport. Actual position
+ * is applied via CSS transform: translate(x, y) from JavaScript. This is
+ * intentional — transforms are GPU-composited and do not trigger layout
+ * recalculation on every frame the way left/top changes would.
+ *
+ * Drag lifecycle (set by ViewSwitcher component)
+ * -----------------------------------------------
+ *   pointerdown on .sr-drag-handle → body gets .sr-dragging (grabbing cursor)
+ *   pointermove → transform updated directly on the DOM (no React re-render)
+ *   pointerup   → .sr-dragging removed, React state and localStorage updated
+ *
+ * Mode overrides
+ * --------------
+ * Switching modes adds .sr-view-{mode} to .app-wrapper. CSS then shows/hides
+ * split panes without touching Split.js inline styles (which would fight back).
+ */
+
+/* ── Toolbar wrapper ─────────────────────────────────────────────────────── */
 
 .sr-toolbar-wrapper {
   position: fixed;
-  top: 8px;
-  right: 12px;
+  left: 0;
+  top: 0;
   z-index: 100;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  /*
+   * transform: translate(x, y) is written by JavaScript to position the toolbar.
+   * will-change tells the browser to promote this element to its own compositor
+   * layer up front, so transform updates don't cause repaints of other layers.
+   * touch-action: none lets our pointer handlers work on touch screens without
+   * the browser trying to scroll the page at the same time.
+   */
+  will-change: transform;
+  touch-action: none;
 }
+
+/* ── Toolbar pill ────────────────────────────────────────────────────────── */
 
 .sr-toolbar {
   display: flex;
@@ -23,6 +53,54 @@
   padding: 3px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
+
+/* ── Drag handle ─────────────────────────────────────────────────────────── */
+
+.sr-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Generous padding gives a larger hit target — easier to grab accurately */
+  min-width: 28px;
+  padding: 6px 10px 6px 8px;
+  cursor: grab;
+  color: #555;
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  margin-right: 2px;
+  border-radius: 5px 0 0 5px;
+  transition: color 0.15s;
+}
+
+.sr-drag-handle:hover {
+  color: #bbb;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.sr-drag-handle svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  /* pointer-events: none prevents the SVG from intercepting pointer events
+     that should be handled by the parent .sr-drag-handle div */
+  pointer-events: none;
+}
+
+/* ── Global drag state ───────────────────────────────────────────────────── */
+
+/*
+ * While dragging, body gets .sr-dragging so the grabbing cursor applies
+ * everywhere on the page — not just over the handle. Without this, moving
+ * the pointer quickly over other elements causes the cursor to flicker back
+ * to the default arrow cursor.
+ * user-select: none prevents text being accidentally selected during drag.
+ */
+body.sr-dragging,
+body.sr-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+/* ── Mode buttons ────────────────────────────────────────────────────────── */
 
 .sr-mode-btn {
   display: flex;
@@ -46,6 +124,7 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* Active button uses Red Hat red to match brand */
 .sr-mode-btn.sr-active {
   color: #fff;
   background: #ee0000;
@@ -64,6 +143,8 @@
   flex-shrink: 0;
 }
 
+/* ── Separator between buttons ───────────────────────────────────────────── */
+
 .sr-sep {
   width: 1px;
   height: 18px;
@@ -71,33 +152,12 @@
   flex-shrink: 0;
 }
 
-/* First-visit hint — positioned below the toolbar */
-.sr-hint {
-  margin-top: 6px;
-  z-index: 100;
-  background: #1a1a1a;
-  color: #ccc;
-  font-size: 12px;
-  padding: 8px 14px;
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  white-space: nowrap;
-  opacity: 1;
-  transition: opacity 0.5s;
-  pointer-events: none;
-}
+/* ── Responsive: collapse to icon-only on narrow viewports ──────────────── */
 
-.sr-hint::before {
-  content: '';
-  position: absolute;
-  bottom: 100%;
-  right: 24px;
-  border: 6px solid transparent;
-  border-bottom-color: #1a1a1a;
-}
-
-/* Collapse to icon-only at narrow widths */
+/*
+ * Below 900px the label text disappears and padding tightens.
+ * The icons still convey the mode — labels are supplementary.
+ */
 @media (max-width: 900px) {
   .sr-mode-btn__label {
     display: none;
@@ -108,9 +168,19 @@
   }
 }
 
-/* Mode overrides — applied to .app-wrapper or body */
-/* These use CSS to hide/show panes without touching Split.js inline styles */
+/* ── Mode overrides ──────────────────────────────────────────────────────── */
 
+/*
+ * These classes are toggled on .app-wrapper by the ViewSwitcher component.
+ * We use CSS to show/hide panes rather than modifying Split.js state because
+ * Split.js stores widths in inline styles — changing them from outside its API
+ * causes conflicts when the user resizes the gutter.
+ *
+ * The !important overrides are needed because Split.js sets inline styles
+ * which have higher specificity than class-based rules.
+ */
+
+/* Instructions mode: hide right pane and gutter, expand left to full width */
 .sr-view-instructions .split.right,
 .sr-view-instructions .gutter.gutter-horizontal {
   display: none !important;
@@ -121,6 +191,7 @@
   max-width: 100% !important;
 }
 
+/* Tabs mode: hide left pane and gutter, expand right to full width */
 .sr-view-tabs .split.left,
 .sr-view-tabs .gutter.gutter-horizontal {
   display: none !important;
