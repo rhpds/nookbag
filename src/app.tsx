@@ -37,6 +37,26 @@ function renderLimitedMarkdown(text: string): { __html: string } {
   return { __html: withBreaks };
 }
 
+// Detect [INFO] prefix in output — used to show informational dialogs instead of error dialogs
+function parseOutputType(output: string | undefined): {
+  message: string;
+  title: string;
+  type: 'warning' | 'danger' | 'success' | 'info';
+} {
+  if (output?.startsWith('[INFO]\n') || output?.startsWith('[INFO] ')) {
+    return {
+      message: output.replace(/^\[INFO\]\n?/, ''),
+      title: 'Action Required',
+      type: 'info',
+    };
+  }
+  return {
+    message: output || '',
+    title: 'Validation Error',
+    type: 'danger',
+  };
+}
+
 type ConfigFetchResult = {
   url: string;
   ok: boolean;
@@ -217,7 +237,7 @@ export default function () {
   const version = config?.antora?.version;
   const s_name = config?.antora?.name || 'modules';
   const [validationMsg, setValidationMsg] = useState<{
-    type: 'warning' | 'danger' | 'success';
+    type: 'warning' | 'danger' | 'success' | 'info';
     message: string;
     title: string;
   } | null>(null);
@@ -523,7 +543,8 @@ export default function () {
         setLoaderStatus({ isLoading: false, stage: null });
       } else {
         setLoaderStatus({ isLoading: false, stage: null });
-        setValidationMsg({ message: res.Output || '', title: 'Validation Error', type: 'danger' });
+        // If output starts with [INFO], show as informational dialog instead of error
+        setValidationMsg(parseOutputType(res.Output));
       }
     }
   }
