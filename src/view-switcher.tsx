@@ -1,24 +1,30 @@
 /**
- * ViewSwitcher — draggable floating toolbar for switching panel layout.
+ * ViewSwitcher — edge-snapping floating toolbar for switching panel layout.
  *
  * Layout modes:
  *   instructions — left panel only (full width)
  *   split        — left + right panels side by side (default)
  *   tabs         — right panel only (full width)
  *
+ * Positioning:
+ *   The toolbar snaps to one of 6 anchor points along the top and bottom
+ *   viewport edges (top-left, top-center, top-right, bottom-left,
+ *   bottom-center, bottom-right). Dragging moves it freely; on release it
+ *   snaps to the nearest anchor with a short ease-out animation.
+ *
  * Drag behaviour:
  *   - User grabs the grip handle on the left of the toolbar
  *   - Uses Pointer Capture API so events keep routing to the handle
  *     even if the pointer leaves the browser window mid-drag
  *   - Position is applied via CSS transform (GPU-composited, no layout reflow)
- *   - Final position is saved to localStorage so it survives page reloads
- *   - On window resize, position is re-clamped so the toolbar never goes off-screen
+ *   - On release, findNearestAnchor() picks the closest snap point
+ *   - The sr-snapping CSS class enables a transition for the snap animation
  *
  * localStorage keys:
- *   sr-panel-mode — last selected view mode (instructions | split | tabs)
- *   sr-toolbar-pos — last drag position { x, y } in viewport pixels
+ *   sr-panel-mode      — last selected view mode (instructions | split | tabs)
+ *   sr-toolbar-anchor  — last snap anchor name (e.g. "bottom-center")
  */
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 
 import './view-switcher.css';
 
@@ -26,72 +32,80 @@ export type ViewMode = 'instructions' | 'split' | 'tabs';
 
 type ViewSwitcherProps = {
   defaultMode?: ViewMode;
+  /**
+   * Called whenever the active mode changes. Internally stabilised via a ref
+   * so consumers do not need to wrap this in useCallback — passing an inline
+   * arrow or a state setter directly is safe and will not cause extra renders.
+   */
   onModeChange: (mode: ViewMode) => void;
   /** When true, the ?view= URL param is kept in sync with the active mode */
   persistUrlState?: boolean;
 };
 
 // localStorage keys
-const STORE_KEY = 'sr-panel-mode';   // persists the selected view mode
-const POS_KEY   = 'sr-toolbar-pos';  // persists the drag position { x, y }
+const STORE_KEY  = 'sr-panel-mode';
+const ANCHOR_KEY = 'sr-toolbar-anchor';
 
 type Pos = { x: number; y: number };
 
-// ─── Clamping helpers ────────────────────────────────────────────────────────
+// ─── Anchor system ────────────────────────────────────────────────────────────
 
-function clamp(val: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, val));
-}
+type Anchor =
+  | 'top-left' | 'top-center' | 'top-right'
+  | 'bottom-left' | 'bottom-center' | 'bottom-right';
 
-/**
- * Fallback toolbar dimensions used before the first DOM measurement.
- * After mount the component measures the real size via getBoundingClientRect
- * and stores it in a ref, so responsive breakpoint changes (e.g. labels
- * hidden below 900px) are handled correctly.
- */
+const ALL_ANCHORS: Anchor[] = [
+  'top-left', 'top-center', 'top-right',
+  'bottom-left', 'bottom-center', 'bottom-right',
+];
+
 const FALLBACK_W = 280;
 const FALLBACK_H = 44;
 const MARGIN     = 8;
 
-/** Returns a position clamped so the toolbar stays fully within the viewport. */
-function clampPos(x: number, y: number, toolbarW = FALLBACK_W, toolbarH = FALLBACK_H): Pos {
+/** Compute pixel position for a named anchor given current viewport + toolbar size. */
+function anchorToPos(anchor: Anchor, tw: number, th: number): Pos {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  switch (anchor) {
+    case 'top-left':      return { x: MARGIN,              y: MARGIN };
+    case 'top-center':    return { x: vw / 2 - tw / 2,    y: MARGIN };
+    case 'top-right':     return { x: vw - tw - MARGIN,    y: MARGIN };
+    case 'bottom-left':   return { x: MARGIN,              y: vh - th - MARGIN };
+    case 'bottom-center': return { x: vw / 2 - tw / 2,    y: vh - th - MARGIN };
+    case 'bottom-right':  return { x: vw - tw - MARGIN,    y: vh - th - MARGIN };
+  }
+}
+
+/** Find the anchor closest (Euclidean) to a free-drag position. */
+function findNearestAnchor(x: number, y: number, tw: number, th: number): Anchor {
+  let best: Anchor = 'bottom-center';
+  let bestDist = Infinity;
+  for (const a of ALL_ANCHORS) {
+    const p = anchorToPos(a, tw, th);
+    const dist = (p.x - x) ** 2 + (p.y - y) ** 2;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = a;
+    }
+  }
+  return best;
+}
+
+/** Clamp an arbitrary position so the toolbar stays within the viewport during drag. */
+function clampToViewport(x: number, y: number, tw: number, th: number): Pos {
   return {
-    x: clamp(x, MARGIN, window.innerWidth  - toolbarW - MARGIN),
-    y: clamp(y, MARGIN, window.innerHeight - toolbarH - MARGIN),
+    x: Math.max(MARGIN, Math.min(x, window.innerWidth  - tw - MARGIN)),
+    y: Math.max(MARGIN, Math.min(y, window.innerHeight - th - MARGIN)),
   };
 }
 
-/** Default position: bottom-center, 24px above the browser chrome. */
-function getDefaultPos(): Pos {
-  return clampPos(
-    window.innerWidth / 2 - FALLBACK_W / 2,
-    window.innerHeight - FALLBACK_H - 24,
-  );
-}
-
-/**
- * Reads the saved position from localStorage and validates it.
- * If the stored position is wildly off-screen (e.g. saved on a larger
- * monitor, or corrupted), it is discarded and null is returned so the
- * caller falls back to the default position.
- */
-function getSavedPos(): Pos | null {
+function getSavedAnchor(): Anchor {
   try {
-    const raw = window.localStorage.getItem(POS_KEY);
-    if (!raw) return null;
-    const p = JSON.parse(raw);
-    if (typeof p.x !== 'number' || typeof p.y !== 'number') return null;
-
-    // Clamp and compare — if the stored value needed more than 200px of
-    // correction it is from a very different viewport; start fresh instead.
-    const clamped = clampPos(p.x, p.y);
-    if (Math.abs(clamped.x - p.x) > 200 || Math.abs(clamped.y - p.y) > 200) {
-      window.localStorage.removeItem(POS_KEY);
-      return null;
-    }
-    return clamped;
+    const raw = window.localStorage.getItem(ANCHOR_KEY);
+    if (raw && ALL_ANCHORS.includes(raw as Anchor)) return raw as Anchor;
   } catch (_e) {}
-  return null;
+  return 'bottom-center';
 }
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
@@ -175,20 +189,17 @@ const buttons: { mode: ViewMode; Icon: React.FC; label: string; title: string }[
 
 export default function ViewSwitcher({ defaultMode = 'split', onModeChange, persistUrlState }: ViewSwitcherProps) {
   const [mode, setMode] = useState<ViewMode>(() => getInitialMode(defaultMode));
-
-  // pos drives the CSS transform that positions the toolbar.
-  // Initialised from localStorage if valid, otherwise default (bottom-center).
-  const [pos, setPos] = useState<Pos>(() => getSavedPos() ?? getDefaultPos());
+  const [anchor, setAnchor] = useState<Anchor>(getSavedAnchor);
+  const [pos, setPos] = useState<Pos>(() => anchorToPos(getSavedAnchor(), FALLBACK_W, FALLBACK_H));
 
   const wrapperRef = useRef<HTMLDivElement>(null);
-
-  // posRef mirrors pos state so the resize handler always reads the latest
-  // value without being re-registered every time pos changes.
-  const posRef = useRef(pos);
-  useEffect(() => { posRef.current = pos; }, [pos]);
-
-  const toolbarSize = useRef({ w: FALLBACK_W, h: FALLBACK_H });
   const mountedRef = useRef(false);
+  const isSnapping = useRef(false);
+
+  // anchorRef mirrors anchor state so the resize handler always reads the
+  // latest value without being re-registered every time anchor changes.
+  const anchorRef = useRef(anchor);
+  useEffect(() => { anchorRef.current = anchor; }, [anchor]);
 
   // Stabilise the onModeChange callback so the persistence effect doesn't
   // re-run when a consumer passes a new arrow function on each render.
@@ -196,89 +207,97 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
   useEffect(() => { onModeChangeRef.current = onModeChange; }, [onModeChange]);
   const stableOnModeChange = useCallback((m: ViewMode) => onModeChangeRef.current(m), []);
 
-  // ── Resize handling ──────────────────────────────────────────────────────
-  // When the viewport shrinks, a previously valid position might be off-screen.
-  // Re-clamp on every resize and persist the corrected value.
-  useEffect(() => {
-    let saveTimer: ReturnType<typeof setTimeout>;
-
-    function onResize() {
-      // Re-measure — toolbar width changes at the 900px responsive breakpoint
-      if (wrapperRef.current) {
-        const rect = wrapperRef.current.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) {
-          toolbarSize.current = { w: rect.width, h: rect.height };
-        }
-      }
-      const { w, h } = toolbarSize.current;
-      const clamped = clampPos(posRef.current.x, posRef.current.y, w, h);
-      setPos(clamped);
-
-      clearTimeout(saveTimer);
-      saveTimer = setTimeout(() => {
-        try { window.localStorage.setItem(POS_KEY, JSON.stringify(clamped)); } catch (_e) {}
-      }, 200);
+  // ── Toolbar measurement ─────────────────────────────────────────────────
+  function getToolbarSize(): { w: number; h: number } {
+    if (wrapperRef.current) {
+      const rect = wrapperRef.current.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) return { w: rect.width, h: rect.height };
     }
+    return { w: FALLBACK_W, h: FALLBACK_H };
+  }
 
+  // ── Correct position once the real toolbar dimensions are known ─────────
+  // The initial pos state uses FALLBACK_W/H which may differ from the
+  // actual rendered size, pushing the toolbar off-screen on right anchors.
+  useLayoutEffect(() => {
+    const size = getToolbarSize();
+    setPos(anchorToPos(anchorRef.current, size.w, size.h));
+  }, []);
+
+  // ── Resize handling ──────────────────────────────────────────────────────
+  useEffect(() => {
+    function onResize() {
+      const size = getToolbarSize();
+      setPos(anchorToPos(anchorRef.current, size.w, size.h));
+    }
     window.addEventListener('resize', onResize);
-    return () => {
-      window.removeEventListener('resize', onResize);
-      clearTimeout(saveTimer);
-    };
+    return () => window.removeEventListener('resize', onResize);
   }, []);
 
   // ── Drag state ───────────────────────────────────────────────────────────
-  // Stored in a ref rather than state — we don't want React re-renders during
-  // drag; position updates go directly to the DOM via applyTransform().
   const drag = useRef<{
-    pointerId:     number;  // identifies which pointer is dragging (multi-touch safety)
-    startPointerX: number;  // pointer position at drag start
+    pointerId:     number;
+    startPointerX: number;
     startPointerY: number;
-    startElemX:    number;  // toolbar position at drag start
+    startElemX:    number;
     startElemY:    number;
   } | null>(null);
 
   // ── Transform helper ─────────────────────────────────────────────────────
-  // Writes directly to the DOM style — GPU-composited via CSS transform,
-  // does not trigger layout or paint on the main thread.
   function applyTransform(x: number, y: number) {
     if (wrapperRef.current) {
       wrapperRef.current.style.transform = `translate(${x}px, ${y}px)`;
     }
   }
 
-  // Sync transform whenever pos state changes (initial render + after drag/resize)
+  // Sync transform whenever pos state changes (initial render + after snap/resize)
   useEffect(() => {
     applyTransform(pos.x, pos.y);
   }, [pos]);
 
-  // Measure actual toolbar dimensions on mount for accurate clamping
+  // ── Snap animation cleanup ─────────────────────────────────────────────
+  // Remove the sr-snapping class after the CSS transition finishes so it
+  // doesn't interfere with the next drag.
   useEffect(() => {
-    if (wrapperRef.current) {
-      const rect = wrapperRef.current.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        toolbarSize.current = { w: rect.width, h: rect.height };
-      }
+    const el = wrapperRef.current;
+    if (!el) return;
+    function onTransitionEnd() {
+      isSnapping.current = false;
+      el!.classList.remove('sr-snapping');
     }
+    el.addEventListener('transitionend', onTransitionEnd);
+    return () => el.removeEventListener('transitionend', onTransitionEnd);
   }, []);
 
   // ── Pointer event handlers ───────────────────────────────────────────────
-  //
-  // We use the Pointer Capture API instead of document-level mousemove/mouseup.
-  // setPointerCapture() routes all subsequent pointer events for that pointer ID
-  // to this element — even if the cursor leaves the browser window — so the drag
-  // cannot get "stuck" when the user releases outside the viewport.
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    e.preventDefault(); // prevent text selection starting during drag
+    e.preventDefault();
     (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
-    document.body.classList.add('sr-dragging'); // enforces grabbing cursor globally
+
+    let startX = pos.x;
+    let startY = pos.y;
+
+    // Cancel any in-progress snap animation. Read the current visual position
+    // from the DOM since pos state already holds the snap *target* which the
+    // CSS transition may not have reached yet.
+    if (isSnapping.current && wrapperRef.current) {
+      isSnapping.current = false;
+      wrapperRef.current.classList.remove('sr-snapping');
+      const rect = wrapperRef.current.getBoundingClientRect();
+      startX = rect.left;
+      startY = rect.top;
+      applyTransform(startX, startY);
+      setPos({ x: startX, y: startY });
+    }
+
+    document.body.classList.add('sr-dragging');
     drag.current = {
       pointerId:     e.pointerId,
       startPointerX: e.clientX,
       startPointerY: e.clientY,
-      startElemX:    pos.x,
-      startElemY:    pos.y,
+      startElemX:    startX,
+      startElemY:    startY,
     };
   }
 
@@ -286,31 +305,40 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
     if (!drag.current) return;
     const dx = e.clientX - drag.current.startPointerX;
     const dy = e.clientY - drag.current.startPointerY;
-    const { w, h } = toolbarSize.current;
-    const { x, y } = clampPos(drag.current.startElemX + dx, drag.current.startElemY + dy, w, h);
+    const size = getToolbarSize();
+    const { x, y } = clampToViewport(
+      drag.current.startElemX + dx,
+      drag.current.startElemY + dy,
+      size.w, size.h,
+    );
     applyTransform(x, y);
   }
 
   function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
     if (!drag.current) return;
     document.body.classList.remove('sr-dragging');
+
     const dx = e.clientX - drag.current.startPointerX;
     const dy = e.clientY - drag.current.startPointerY;
-    const startX = drag.current.startElemX;
-    const startY = drag.current.startElemY;
+    const freeX = drag.current.startElemX + dx;
+    const freeY = drag.current.startElemY + dy;
     drag.current = null;
 
-    const { w, h } = toolbarSize.current;
-    const newPos = clampPos(startX + dx, startY + dy, w, h);
-    setPos(newPos);
-    try {
-      window.localStorage.setItem(POS_KEY, JSON.stringify(newPos));
-    } catch (_e) {}
+    // Snap to nearest anchor with animated transition
+    const size = getToolbarSize();
+    const target = findNearestAnchor(freeX, freeY, size.w, size.h);
+    const snapPos = anchorToPos(target, size.w, size.h);
+
+    isSnapping.current = true;
+    wrapperRef.current?.classList.add('sr-snapping');
+    applyTransform(snapPos.x, snapPos.y);
+
+    setAnchor(target);
+    setPos(snapPos);
+    try { window.localStorage.setItem(ANCHOR_KEY, target); } catch (_e) {}
   }
 
   // ── Mode persistence & URL sync ──────────────────────────────────────────
-  // On mount we notify the parent of the initial mode but skip writing back
-  // to localStorage / URL (the value was just read from those sources).
   useEffect(() => {
     stableOnModeChange(mode);
     if (mountedRef.current) {
@@ -335,17 +363,12 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
-    // Wrapper is position:fixed at (0,0); actual position comes from the CSS transform.
-    // This keeps the stacking context clean and avoids left/top triggering layout.
     <div
       ref={wrapperRef}
       className="sr-toolbar-wrapper"
     >
       <div className="sr-toolbar" role="toolbar" aria-label="View mode switcher">
 
-        {/* Drag handle — the only part of the toolbar that initiates dragging.
-            onPointerCancel mirrors onPointerUp so a cancelled pointer (e.g. phone
-            call interruption on mobile) still cleans up drag state correctly. */}
         <div
           className="sr-drag-handle"
           onPointerDown={onPointerDown}
@@ -357,7 +380,6 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
           <IcoDrag />
         </div>
 
-        {/* Mode buttons — clicking these does NOT start a drag */}
         {buttons.map((btn, i) => (
           <React.Fragment key={btn.mode}>
             {i > 0 && <div className="sr-sep" aria-hidden="true" />}

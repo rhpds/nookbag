@@ -1,8 +1,8 @@
 /*
  * view-switcher.css
  *
- * Styles for the draggable floating toolbar that lets users switch between
- * Instructions / Split / Tabs layout modes.
+ * Styles for the edge-snapping floating toolbar that lets users switch
+ * between Instructions / Split / Tabs layout modes.
  *
  * Positioning strategy
  * --------------------
@@ -11,11 +11,12 @@
  * intentional — transforms are GPU-composited and do not trigger layout
  * recalculation on every frame the way left/top changes would.
  *
- * Drag lifecycle (set by ViewSwitcher component)
- * -----------------------------------------------
- *   pointerdown on .sr-drag-handle → body gets .sr-dragging (grabbing cursor)
+ * Drag + snap lifecycle
+ * ---------------------
+ *   pointerdown on .sr-drag-handle → body gets .sr-dragging, sr-snapping removed
  *   pointermove → transform updated directly on the DOM (no React re-render)
- *   pointerup   → .sr-dragging removed, React state and localStorage updated
+ *   pointerup   → nearest anchor found, sr-snapping added, transform animates
+ *   transitionend → sr-snapping removed, ready for next drag
  *
  * Mode overrides
  * --------------
@@ -39,6 +40,18 @@
    */
   will-change: transform;
   touch-action: none;
+}
+
+/* ── Snap animation ─────────────────────────────────────────────────────── */
+
+/*
+ * Added by JS on pointer-up, removed on transitionend. Enables a smooth
+ * ease-out from the free-drag position to the nearest anchor point.
+ * The class is also removed on the next pointer-down so a quick re-grab
+ * cancels the animation and the toolbar responds immediately.
+ */
+.sr-toolbar-wrapper.sr-snapping {
+  transition: transform 0.25s ease-out;
 }
 
 /* ── Toolbar pill ────────────────────────────────────────────────────────── */
