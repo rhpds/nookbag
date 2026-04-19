@@ -18,7 +18,7 @@
  *   sr-panel-mode — last selected view mode (instructions | split | tabs)
  *   sr-toolbar-pos — last drag position { x, y } in viewport pixels
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 import './view-switcher.css';
 
@@ -44,27 +44,28 @@ function clamp(val: number, min: number, max: number) {
 }
 
 /**
- * Approximate toolbar size used for viewport clamping.
- * These don't need to be pixel-perfect — they just keep the toolbar
- * from being dragged entirely off-screen.
+ * Fallback toolbar dimensions used before the first DOM measurement.
+ * After mount the component measures the real size via getBoundingClientRect
+ * and stores it in a ref, so responsive breakpoint changes (e.g. labels
+ * hidden below 900px) are handled correctly.
  */
-const TOOLBAR_W = 280;
-const TOOLBAR_H = 44;
-const MARGIN    = 8;   // minimum gap from viewport edges
+const FALLBACK_W = 280;
+const FALLBACK_H = 44;
+const MARGIN     = 8;
 
 /** Returns a position clamped so the toolbar stays fully within the viewport. */
-function clampPos(x: number, y: number): Pos {
+function clampPos(x: number, y: number, toolbarW = FALLBACK_W, toolbarH = FALLBACK_H): Pos {
   return {
-    x: clamp(x, MARGIN, window.innerWidth  - TOOLBAR_W - MARGIN),
-    y: clamp(y, MARGIN, window.innerHeight - TOOLBAR_H - MARGIN),
+    x: clamp(x, MARGIN, window.innerWidth  - toolbarW - MARGIN),
+    y: clamp(y, MARGIN, window.innerHeight - toolbarH - MARGIN),
   };
 }
 
 /** Default position: bottom-center, 24px above the browser chrome. */
 function getDefaultPos(): Pos {
   return clampPos(
-    window.innerWidth / 2 - TOOLBAR_W / 2,
-    window.innerHeight - TOOLBAR_H - 24,
+    window.innerWidth / 2 - FALLBACK_W / 2,
+    window.innerHeight - FALLBACK_H - 24,
   );
 }
 
@@ -186,19 +187,44 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
   const posRef = useRef(pos);
   useEffect(() => { posRef.current = pos; }, [pos]);
 
+  const toolbarSize = useRef({ w: FALLBACK_W, h: FALLBACK_H });
+  const mountedRef = useRef(false);
+
+  // Stabilise the onModeChange callback so the persistence effect doesn't
+  // re-run when a consumer passes a new arrow function on each render.
+  const onModeChangeRef = useRef(onModeChange);
+  useEffect(() => { onModeChangeRef.current = onModeChange; }, [onModeChange]);
+  const stableOnModeChange = useCallback((m: ViewMode) => onModeChangeRef.current(m), []);
+
   // ── Resize handling ──────────────────────────────────────────────────────
   // When the viewport shrinks, a previously valid position might be off-screen.
   // Re-clamp on every resize and persist the corrected value.
   useEffect(() => {
+    let saveTimer: ReturnType<typeof setTimeout>;
+
     function onResize() {
-      const clamped = clampPos(posRef.current.x, posRef.current.y);
+      // Re-measure — toolbar width changes at the 900px responsive breakpoint
+      if (wrapperRef.current) {
+        const rect = wrapperRef.current.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          toolbarSize.current = { w: rect.width, h: rect.height };
+        }
+      }
+      const { w, h } = toolbarSize.current;
+      const clamped = clampPos(posRef.current.x, posRef.current.y, w, h);
       setPos(clamped);
-      try {
-        window.localStorage.setItem(POS_KEY, JSON.stringify(clamped));
-      } catch (_e) {}
+
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        try { window.localStorage.setItem(POS_KEY, JSON.stringify(clamped)); } catch (_e) {}
+      }, 200);
     }
+
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      clearTimeout(saveTimer);
+    };
   }, []);
 
   // ── Drag state ───────────────────────────────────────────────────────────
@@ -226,6 +252,16 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
     applyTransform(pos.x, pos.y);
   }, [pos]);
 
+  // Measure actual toolbar dimensions on mount for accurate clamping
+  useEffect(() => {
+    if (wrapperRef.current) {
+      const rect = wrapperRef.current.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        toolbarSize.current = { w: rect.width, h: rect.height };
+      }
+    }
+  }, []);
+
   // ── Pointer event handlers ───────────────────────────────────────────────
   //
   // We use the Pointer Capture API instead of document-level mousemove/mouseup.
@@ -250,9 +286,9 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
     if (!drag.current) return;
     const dx = e.clientX - drag.current.startPointerX;
     const dy = e.clientY - drag.current.startPointerY;
-    // Clamp during move too — toolbar never leaves the viewport even mid-drag
-    const { x, y } = clampPos(drag.current.startElemX + dx, drag.current.startElemY + dy);
-    applyTransform(x, y); // direct DOM write — no React re-render per frame
+    const { w, h } = toolbarSize.current;
+    const { x, y } = clampPos(drag.current.startElemX + dx, drag.current.startElemY + dy, w, h);
+    applyTransform(x, y);
   }
 
   function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
@@ -260,12 +296,12 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
     document.body.classList.remove('sr-dragging');
     const dx = e.clientX - drag.current.startPointerX;
     const dy = e.clientY - drag.current.startPointerY;
+    const startX = drag.current.startElemX;
+    const startY = drag.current.startElemY;
     drag.current = null;
 
-    const newPos = clampPos(pos.x + dx, pos.y + dy);
-
-    // Commit final position to React state (triggers re-render with correct transform)
-    // and persist to localStorage for next page load.
+    const { w, h } = toolbarSize.current;
+    const newPos = clampPos(startX + dx, startY + dy, w, h);
     setPos(newPos);
     try {
       window.localStorage.setItem(POS_KEY, JSON.stringify(newPos));
@@ -273,13 +309,18 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
   }
 
   // ── Mode persistence & URL sync ──────────────────────────────────────────
+  // On mount we notify the parent of the initial mode but skip writing back
+  // to localStorage / URL (the value was just read from those sources).
   useEffect(() => {
-    onModeChange(mode);
-    if (persistUrlState) setUrlViewParam(mode);
-    try {
-      window.localStorage.setItem(STORE_KEY, mode);
-    } catch (_e) {}
-  }, [mode, onModeChange, persistUrlState]);
+    stableOnModeChange(mode);
+    if (mountedRef.current) {
+      if (persistUrlState) setUrlViewParam(mode);
+      try {
+        window.localStorage.setItem(STORE_KEY, mode);
+      } catch (_e) {}
+    }
+    mountedRef.current = true;
+  }, [mode, stableOnModeChange, persistUrlState]);
 
   // Sync mode from URL when the user navigates back/forward
   useEffect(() => {

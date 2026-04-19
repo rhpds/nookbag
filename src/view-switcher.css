@@ -94,8 +94,7 @@
  * to the default arrow cursor.
  * user-select: none prevents text being accidentally selected during drag.
  */
-body.sr-dragging,
-body.sr-dragging * {
+body.sr-dragging {
   cursor: grabbing !important;
   user-select: none !important;
 }
