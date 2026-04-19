@@ -616,8 +616,16 @@ export default function () {
       )}
       <div className={`app-wrapper${viewMode === 'instructions' ? ' sr-view-instructions' : viewMode === 'split' ? ' sr-view-split' : viewMode === 'tabs' ? ' sr-view-tabs' : ''}`}>
         <Split
-          sizes={moduleTabs.length > 0 ? [leftPaneDefault, 100 - leftPaneDefault] : [100]}
-          minSize={100}
+          sizes={
+            moduleTabs.length > 0
+              ? viewMode === 'instructions'
+                ? [100, 0]
+                : viewMode === 'tabs'
+                ? [0, 100]
+                : [leftPaneDefault, 100 - leftPaneDefault]
+              : [100]
+          }
+          minSize={viewMode === 'instructions' || viewMode === 'tabs' ? 0 : 100}
           gutterSize={1}
           direction="horizontal"
           cursor="col-resize"
