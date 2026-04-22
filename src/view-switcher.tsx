@@ -155,13 +155,6 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
   useEffect(() => { onModeChangeRef.current = onModeChange; }, [onModeChange]);
   const stableOnModeChange = useCallback((m: ViewMode) => onModeChangeRef.current(m), []);
 
-  // ── Apply Y position ──────────────────────────────────────────────────
-  useEffect(() => {
-    if (popoutRef.current) {
-      popoutRef.current.style.top = `${yPercent}vh`;
-    }
-  }, [yPercent]);
-
   // ── Recalculate on window resize to stay in bounds ─────────────────────
   useEffect(() => {
     function onResize() {
