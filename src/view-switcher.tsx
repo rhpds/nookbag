@@ -140,6 +140,7 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
   const [expanded, setExpanded] = useState(false);
   const [pulse, setPulse] = useState(false);
   const [yPercent, setYPercent] = useState(getSavedYPercent);
+  const [viewportH, setViewportH] = useState(() => window.innerHeight);
 
   const popoutRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(false);
@@ -155,10 +156,11 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
   useEffect(() => { onModeChangeRef.current = onModeChange; }, [onModeChange]);
   const stableOnModeChange = useCallback((m: ViewMode) => onModeChangeRef.current(m), []);
 
-  // ── Re-clamp position when viewport height changes ─────────────────────
+  // ── Track viewport height and re-clamp position on resize ──────────────
   useEffect(() => {
     function onResize() {
       const h = window.innerHeight;
+      setViewportH(h);
       setYPercent(prev => {
         const px = (prev / 100) * h;
         const clamped = Math.max(CLAMP_MARGIN, Math.min(px, h - CLAMP_MARGIN));
@@ -203,7 +205,7 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
       const clamped = Math.max(CLAMP_MARGIN, Math.min(newPx, window.innerHeight - CLAMP_MARGIN));
       const pct = (clamped / window.innerHeight) * 100;
       if (popoutRef.current) {
-        popoutRef.current.style.top = `${pct}vh`;
+        popoutRef.current.style.top = `${clamped}px`;
       }
     }
   }
@@ -262,11 +264,13 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
   }, [persistUrlState]);
 
   // ── Render ─────────────────────────────────────────────────────────────
+  const topPx = Math.max(CLAMP_MARGIN, Math.min((yPercent / 100) * viewportH, viewportH - CLAMP_MARGIN));
+
   return (
     <div
       ref={popoutRef}
       className={`sr-popout${expanded ? ' sr-expanded' : ''}`}
-      style={{ top: `${yPercent}vh` }}
+      style={{ top: `${topPx}px` }}
       onKeyDown={onKeyDown}
     >
       <button
