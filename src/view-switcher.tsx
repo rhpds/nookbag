@@ -185,6 +185,7 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
   function onPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
+    e.currentTarget.focus();
     const topPx = (yPercent / 100) * window.innerHeight;
     drag.current = {
       startPointerY: e.clientY,
