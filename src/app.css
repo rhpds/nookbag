@@ -105,7 +105,7 @@ iframe {
   display: flex;
   flex-direction: row;
   align-items: flex-start;
-  border-top: 1px solid #6a6e73;
+  border-top: 1px solid var(--pf-t--global--color--nonstatus--gray--100, #e0e0e0);
 }
 .app-iframe__inner .pf-c-button {
   padding-top: var(--pf-c-button--PaddingTop);
@@ -118,7 +118,7 @@ iframe {
   height: 52px;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid #6a6e73;
+  border-bottom: 1px solid var(--pf-t--global--color--nonstatus--gray--100, #e0e0e0);
   padding: 4px 5%;
   min-height: 52px;
 }
