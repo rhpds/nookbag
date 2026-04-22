@@ -75,22 +75,21 @@ body.sr-dragging {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  width: 148px;
   background: #1a1a1a;
   border-radius: 8px 0 0 8px;
-  box-shadow: none;
-  padding: 0;
+  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  padding: 4px;
   overflow: hidden;
-  max-width: 0;
+  transform: translateX(100%);
   opacity: 0;
-  transition: max-width 0.25s ease, opacity 0.2s ease, padding 0.25s ease, box-shadow 0.2s ease;
+  transition: transform 0.25s ease, opacity 0.2s ease;
   pointer-events: none;
 }
 
 .sr-popout.sr-expanded .sr-panel {
-  max-width: 160px;
+  transform: translateX(0);
   opacity: 1;
-  padding: 4px;
-  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.08);
   pointer-events: auto;
 }
 
@@ -175,8 +174,8 @@ body.sr-dragging {
     gap: 0;
     justify-content: center;
   }
-  .sr-popout.sr-expanded .sr-panel {
-    max-width: 48px;
+  .sr-panel {
+    width: 48px;
   }
 }
 
