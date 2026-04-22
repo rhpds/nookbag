@@ -626,7 +626,7 @@ export default function () {
               : [100]
           }
           minSize={viewMode === 'instructions' || viewMode === 'tabs' ? 0 : 100}
-          gutterSize={1}
+          gutterSize={2}
           direction="horizontal"
           cursor="col-resize"
           style={{ display: 'flex', flexDirection: 'row', resize: 'horizontal', height: '100%' }}
@@ -769,7 +769,7 @@ export default function () {
                     <Split
                       sizes={[50, 50]}
                       minSize={100}
-                      gutterSize={1}
+                      gutterSize={2}
                       cursor="row-resize"
                       direction="vertical"
                       style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
@@ -783,6 +783,9 @@ export default function () {
                           title={`${tab.name} - primary`}
                           aria-label={`${tab.name} primary content`}
                           allow="clipboard-write; clipboard-read"
+                          style={{
+                            ...(isTerminalTab(tab) ? { padding: '0 16px', background: '#000' } : {}),
+                          }}
                         ></iframe>
                       </div>
                       <div className="split bottom">
@@ -796,7 +799,10 @@ export default function () {
                           width="100%"
                           height="100%"
                           allow="clipboard-write; clipboard-read"
-                          style={{ display: 'block' }}
+                          style={{
+                            display: 'block',
+                            ...(isTerminalTab(tab) ? { padding: '0 16px', background: '#000' } : {}),
+                          }}
                           title={`${tab.secondary_name || 'Secondary'} - ${tab.name}`}
                           aria-label={`${tab.secondary_name || 'Secondary'} content for ${tab.name}`}
                         ></iframe>
@@ -810,7 +816,7 @@ export default function () {
                       width="100%"
                       allow="clipboard-write; clipboard-read"
                       style={{
-                        ...(isTerminalTab(tab) ? { padding: '0 32px', background: '#000' } : {}),
+                        ...(isTerminalTab(tab) ? { padding: '0 16px', background: '#000' } : {}),
                       }}
                       title={`${tab.name}`}
                       aria-label={`${tab.name} content`}
