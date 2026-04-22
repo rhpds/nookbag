@@ -155,10 +155,15 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
   useEffect(() => { onModeChangeRef.current = onModeChange; }, [onModeChange]);
   const stableOnModeChange = useCallback((m: ViewMode) => onModeChangeRef.current(m), []);
 
-  // ── Recalculate on window resize to stay in bounds ─────────────────────
+  // ── Re-clamp position when viewport height changes ─────────────────────
   useEffect(() => {
     function onResize() {
-      setYPercent(prev => Math.max(0, Math.min(100, prev)));
+      const h = window.innerHeight;
+      setYPercent(prev => {
+        const px = (prev / 100) * h;
+        const clamped = Math.max(CLAMP_MARGIN, Math.min(px, h - CLAMP_MARGIN));
+        return (clamped / h) * 100;
+      });
     }
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
