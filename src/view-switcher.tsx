@@ -36,7 +36,6 @@ type ViewSwitcherProps = {
 };
 
 const STORE_KEY = 'sr-panel-mode';
-const FIRST_VISIT_KEY = 'sr-visited';
 const YPOS_KEY = 'sr-ypos';
 
 const DRAG_THRESHOLD = 5;
@@ -115,18 +114,6 @@ function getSavedYPercent(): number {
   return 50;
 }
 
-function isFirstVisit(): boolean {
-  try {
-    return !window.localStorage.getItem(FIRST_VISIT_KEY);
-  } catch (_e) {
-    return false;
-  }
-}
-
-function markVisited() {
-  try { window.localStorage.setItem(FIRST_VISIT_KEY, '1'); } catch (_e) {}
-}
-
 const buttons: { mode: ViewMode; Icon: React.FC; label: string; title: string }[] = [
   { mode: 'instructions', Icon: IcoDoc,   label: 'Instructions', title: 'Full-width instructions' },
   { mode: 'split',        Icon: IcoSplit, label: 'Split',        title: 'Side by side' },
@@ -138,7 +125,6 @@ const buttons: { mode: ViewMode; Icon: React.FC; label: string; title: string }[
 export default function ViewSwitcher({ defaultMode = 'split', onModeChange, persistUrlState }: ViewSwitcherProps) {
   const [mode, setMode] = useState<ViewMode>(() => getInitialMode(defaultMode));
   const [expanded, setExpanded] = useState(false);
-  const [pulse, setPulse] = useState(false);
   const [yPercent, setYPercent] = useState(getSavedYPercent);
   const [viewportH, setViewportH] = useState(() => window.innerHeight);
 
@@ -171,21 +157,10 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // ── First-visit pulse ───────────────────────────────────────────────────
-  useEffect(() => {
-    if (isFirstVisit()) {
-      setPulse(true);
-      markVisited();
-      const t = setTimeout(() => setPulse(false), 4000);
-      return () => clearTimeout(t);
-    }
-  }, []);
-
   // ── Vertical drag on trigger ───────────────────────────────────────────
   function onPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
-    e.currentTarget.focus();
     const topPx = (yPercent / 100) * window.innerHeight;
     drag.current = {
       startPointerY: e.clientY,
@@ -226,7 +201,6 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
     drag.current = null;
     if (!wasDrag) {
       setExpanded(prev => !prev);
-      setPulse(false);
     }
   }
 
@@ -275,7 +249,7 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
       onKeyDown={onKeyDown}
     >
       <button
-        className={`sr-trigger${pulse ? ' sr-pulse' : ''}`}
+        className="sr-trigger"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
