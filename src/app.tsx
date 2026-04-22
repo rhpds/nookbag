@@ -545,11 +545,11 @@ export default function () {
     }
   }
 
-  function refreshTab(url: string) {
-    const tab = document.querySelector(`.app-split-right__content.active iframe`);
-    if (tab) {
-      (tab as HTMLIFrameElement).src = url;
-    }
+  function refreshTab() {
+    document.querySelectorAll(`.app-split-right__content.active iframe`).forEach((iframe) => {
+      const el = iframe as HTMLIFrameElement;
+      el.src = el.src;
+    });
   }
 
   // Keep URL param ?t in sync with currentTabName for programmatic changes as well
@@ -729,8 +729,8 @@ export default function () {
                         title={
                           <>
                             <TabTitleText>{s.name}</TabTitleText>{' '}
-                            {s.name === currentTabName && !s.secondary_url ? (
-                              <TabTitleIcon onClick={() => refreshTab(s.url as string)}>
+                            {s.name === currentTabName ? (
+                              <TabTitleIcon onClick={() => refreshTab()}>
                                 <RedoIcon color="grey" />
                               </TabTitleIcon>
                             ) : null}
@@ -791,7 +791,19 @@ export default function () {
                       <div className="split bottom">
                         {tab.secondary_name ? (
                           <Tabs activeKey={currentTabName} style={{ height: '56px' }}>
-                            <Tab eventKey={tab.name} title={<TabTitleText>{tab.secondary_name}</TabTitleText>}></Tab>
+                            <Tab eventKey={tab.name} title={
+                              <>
+                                <TabTitleText>{tab.secondary_name}</TabTitleText>{' '}
+                                <TabTitleIcon onClick={() => {
+                                  const el = document.querySelector(
+                                    `.app-split-right__content.active .split.bottom iframe`
+                                  ) as HTMLIFrameElement | null;
+                                  if (el) el.src = el.src;
+                                }}>
+                                  <RedoIcon color="grey" />
+                                </TabTitleIcon>
+                              </>
+                            }></Tab>
                           </Tabs>
                         ) : null}
                         <iframe

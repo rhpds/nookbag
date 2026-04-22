@@ -304,3 +304,22 @@ iframe {
   z-index: 1;
   position: relative;
 }
+
+/* Refresh icon hover affordance */
+.pf-v6-c-tabs__item-icon[onclick],
+.pf-c-tabs__item-icon[onclick],
+.pf-v6-c-tabs__item-icon:has(svg),
+.pf-c-tabs__item-icon:has(svg) {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.pf-v6-c-tabs__item-icon:hover,
+.pf-c-tabs__item-icon:hover {
+  background-color: rgba(0, 0, 0, 0.08);
+}
+.pf-v6-c-tabs__item-icon:active,
+.pf-c-tabs__item-icon:active {
+  background-color: rgba(0, 0, 0, 0.14);
+}
