@@ -13,6 +13,14 @@
  * split panes without touching Split.js inline styles (which would fight back).
  */
 
+/* ── Backdrop — transparent full-screen overlay to catch outside clicks ──── */
+
+.sr-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+}
+
 /* ── Outer wrapper — positions the whole widget on the right edge ────────── */
 
 .sr-popout {

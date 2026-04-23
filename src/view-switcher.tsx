@@ -216,6 +216,7 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
     }
   }
 
+
   // ── Mode persistence & URL sync ────────────────────────────────────────
   useEffect(() => {
     stableOnModeChange(mode);
@@ -242,6 +243,13 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
   const topPx = Math.max(CLAMP_MARGIN, Math.min((yPercent / 100) * viewportH, viewportH - CLAMP_MARGIN));
 
   return (
+    <>
+    {expanded && (
+      <div
+        className="sr-backdrop"
+        onMouseDown={() => setExpanded(false)}
+      />
+    )}
     <div
       ref={popoutRef}
       className={`sr-popout${expanded ? ' sr-expanded' : ''}`}
@@ -279,5 +287,6 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
         ))}
       </div>
     </div>
+    </>
   );
 }
