@@ -21,11 +21,16 @@
   top: 0;
   z-index: 100;
   display: flex;
-  flex-direction: row-reverse;
+  flex-direction: row;
   align-items: stretch;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  /* top is set by JS via inline style; transform centers the widget on its Y position */
-  transform: translateY(-50%);
+  /* Collapsed: panel width off-screen, only trigger visible. Expanded: slides fully in. */
+  transform: translateX(var(--sr-panel-w, 148px)) translateY(-50%);
+  transition: transform 0.25s ease;
+}
+
+.sr-popout.sr-expanded {
+  transform: translateX(0) translateY(-50%);
 }
 
 /* While dragging, show grab cursor everywhere and prevent text selection */
@@ -81,25 +86,14 @@ body.sr-dragging {
   gap: 2px;
   width: 148px;
   background: #1a1a1a;
-  border-radius: 8px 0 0 8px;
-  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.08);
   padding: 4px;
   overflow: hidden;
-  transform: translateX(100%);
-  opacity: 0;
-  transition: transform 0.25s ease, opacity 0.2s ease;
-  pointer-events: none;
-}
-
-.sr-popout.sr-expanded .sr-panel {
-  transform: translateX(0);
-  opacity: 1;
-  pointer-events: auto;
 }
 
 /* When expanded, merge trigger + panel visually */
 .sr-popout.sr-expanded .sr-trigger {
-  border-radius: 0;
   background: #1a1a1a;
 }
 
@@ -170,6 +164,9 @@ body.sr-dragging {
     padding: 9px 10px;
     gap: 0;
     justify-content: center;
+  }
+  .sr-popout {
+    --sr-panel-w: 48px;
   }
   .sr-panel {
     width: 48px;
