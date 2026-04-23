@@ -86,6 +86,13 @@ const createUrlsFromVars = (vars: TTab): TTab => {
     return {
       ...vars,
       external: vars.external ? Boolean(vars.external) : false,
+      ...(vars.secondary_path
+        ? {
+            secondary_url: `${protocol}//${hostname}${vars.secondary_port ? ':' + vars.secondary_port : ''}${
+              vars.secondary_path || ''
+            }`,
+          }
+        : {}),
     };
   }
   if (!vars.port) {
@@ -120,6 +127,11 @@ function showSolveBtn(module?: TModule) {
 function isTerminalTab(tab: TTab) {
   if (tab.type === 'terminal' || tab.type === 'secondary-terminal') return true;
   return tab.path?.startsWith('/wetty') || tab.path?.startsWith('/tty');
+}
+
+function isSecondaryTerminal(tab: TTab) {
+  if (tab.type === 'double-terminal') return true;
+  return tab.secondary_path?.startsWith('/wetty') || tab.secondary_path?.startsWith('/tty');
 }
 
 type Session = {
@@ -546,10 +558,15 @@ export default function () {
   }
 
   function refreshTab() {
-    document.querySelectorAll(`.app-split-right__content.active iframe`).forEach((iframe) => {
-      const el = iframe as HTMLIFrameElement;
-      el.src = el.src;
-    });
+    const active = document.querySelector(`.app-split-right__content.active`);
+    if (!active) return;
+    const top = active.querySelector(`.split.top iframe`) as HTMLIFrameElement | null;
+    if (top) {
+      top.src = top.src;
+    } else {
+      const solo = active.querySelector(`:scope > iframe`) as HTMLIFrameElement | null;
+      if (solo) solo.src = solo.src;
+    }
   }
 
   // Keep URL param ?t in sync with currentTabName for programmatic changes as well
@@ -813,7 +830,7 @@ export default function () {
                           allow="clipboard-write; clipboard-read"
                           style={{
                             display: 'block',
-                            ...(isTerminalTab(tab) ? { padding: '0 16px', background: '#000' } : {}),
+                            ...(isSecondaryTerminal(tab) ? { padding: '0 16px', background: '#000' } : {}),
                           }}
                           title={`${tab.secondary_name || 'Secondary'} - ${tab.name}`}
                           aria-label={`${tab.secondary_name || 'Secondary'} content for ${tab.name}`}
