@@ -86,6 +86,13 @@ const createUrlsFromVars = (vars: TTab): TTab => {
     return {
       ...vars,
       external: vars.external ? Boolean(vars.external) : false,
+      ...(vars.secondary_path
+        ? {
+            secondary_url: `${protocol}//${hostname}${vars.secondary_port ? ':' + vars.secondary_port : ''}${
+              vars.secondary_path || ''
+            }`,
+          }
+        : {}),
     };
   }
   if (!vars.port) {
@@ -120,6 +127,11 @@ function showSolveBtn(module?: TModule) {
 function isTerminalTab(tab: TTab) {
   if (tab.type === 'terminal' || tab.type === 'secondary-terminal') return true;
   return tab.path?.startsWith('/wetty') || tab.path?.startsWith('/tty');
+}
+
+function isSecondaryTerminal(tab: TTab) {
+  if (tab.type === 'double-terminal') return true;
+  return tab.secondary_path?.startsWith('/wetty') || tab.secondary_path?.startsWith('/tty');
 }
 
 type Session = {
@@ -545,10 +557,15 @@ export default function () {
     }
   }
 
-  function refreshTab(url: string) {
-    const tab = document.querySelector(`.app-split-right__content.active iframe`);
-    if (tab) {
-      (tab as HTMLIFrameElement).src = url;
+  function refreshTab() {
+    const active = document.querySelector(`.app-split-right__content.active`);
+    if (!active) return;
+    const top = active.querySelector(`.split.top iframe`) as HTMLIFrameElement | null;
+    if (top) {
+      top.src = top.src;
+    } else {
+      const solo = active.querySelector(`:scope > iframe`) as HTMLIFrameElement | null;
+      if (solo) solo.src = solo.src;
     }
   }
 
@@ -626,7 +643,7 @@ export default function () {
               : [100]
           }
           minSize={viewMode === 'instructions' || viewMode === 'tabs' ? 0 : 100}
-          gutterSize={1}
+          gutterSize={2}
           direction="horizontal"
           cursor="col-resize"
           style={{ display: 'flex', flexDirection: 'row', resize: 'horizontal', height: '100%' }}
@@ -729,8 +746,8 @@ export default function () {
                         title={
                           <>
                             <TabTitleText>{s.name}</TabTitleText>{' '}
-                            {s.name === currentTabName && !s.secondary_url ? (
-                              <TabTitleIcon onClick={() => refreshTab(s.url as string)}>
+                            {s.name === currentTabName ? (
+                              <TabTitleIcon onClick={() => refreshTab()}>
                                 <RedoIcon color="grey" />
                               </TabTitleIcon>
                             ) : null}
@@ -769,7 +786,7 @@ export default function () {
                     <Split
                       sizes={[50, 50]}
                       minSize={100}
-                      gutterSize={1}
+                      gutterSize={2}
                       cursor="row-resize"
                       direction="vertical"
                       style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
@@ -783,12 +800,27 @@ export default function () {
                           title={`${tab.name} - primary`}
                           aria-label={`${tab.name} primary content`}
                           allow="clipboard-write; clipboard-read"
+                          style={{
+                            ...(isTerminalTab(tab) ? { padding: '0 16px', background: '#000' } : {}),
+                          }}
                         ></iframe>
                       </div>
                       <div className="split bottom">
                         {tab.secondary_name ? (
                           <Tabs activeKey={currentTabName} style={{ height: '56px' }}>
-                            <Tab eventKey={tab.name} title={<TabTitleText>{tab.secondary_name}</TabTitleText>}></Tab>
+                            <Tab eventKey={tab.name} title={
+                              <>
+                                <TabTitleText>{tab.secondary_name}</TabTitleText>{' '}
+                                <TabTitleIcon onClick={() => {
+                                  const el = document.querySelector(
+                                    `.app-split-right__content.active .split.bottom iframe`
+                                  ) as HTMLIFrameElement | null;
+                                  if (el) el.src = el.src;
+                                }}>
+                                  <RedoIcon color="grey" />
+                                </TabTitleIcon>
+                              </>
+                            }></Tab>
                           </Tabs>
                         ) : null}
                         <iframe
@@ -796,7 +828,10 @@ export default function () {
                           width="100%"
                           height="100%"
                           allow="clipboard-write; clipboard-read"
-                          style={{ display: 'block' }}
+                          style={{
+                            display: 'block',
+                            ...(isSecondaryTerminal(tab) ? { padding: '0 16px', background: '#000' } : {}),
+                          }}
                           title={`${tab.secondary_name || 'Secondary'} - ${tab.name}`}
                           aria-label={`${tab.secondary_name || 'Secondary'} content for ${tab.name}`}
                         ></iframe>
@@ -810,7 +845,7 @@ export default function () {
                       width="100%"
                       allow="clipboard-write; clipboard-read"
                       style={{
-                        ...(isTerminalTab(tab) ? { padding: '0 32px', background: '#000' } : {}),
+                        ...(isTerminalTab(tab) ? { padding: '0 16px', background: '#000' } : {}),
                       }}
                       title={`${tab.name}`}
                       aria-label={`${tab.name} content`}
