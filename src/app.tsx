@@ -801,7 +801,7 @@ export default function () {
                           aria-label={`${tab.name} primary content`}
                           allow="clipboard-write; clipboard-read"
                           style={{
-                            ...(isTerminalTab(tab) ? { padding: '0 16px', background: '#000' } : {}),
+                            ...(isTerminalTab(tab) ? { background: 'transparent' } : {}),
                           }}
                         ></iframe>
                       </div>
@@ -830,7 +830,7 @@ export default function () {
                           allow="clipboard-write; clipboard-read"
                           style={{
                             display: 'block',
-                            ...(isSecondaryTerminal(tab) ? { padding: '0 16px', background: '#000' } : {}),
+                            ...(isSecondaryTerminal(tab) ? { background: 'transparent' } : {}),
                           }}
                           title={`${tab.secondary_name || 'Secondary'} - ${tab.name}`}
                           aria-label={`${tab.secondary_name || 'Secondary'} content for ${tab.name}`}
@@ -845,7 +845,7 @@ export default function () {
                       width="100%"
                       allow="clipboard-write; clipboard-read"
                       style={{
-                        ...(isTerminalTab(tab) ? { padding: '0 16px', background: '#000' } : {}),
+                        ...(isTerminalTab(tab) ? { background: 'transparent' } : {}),
                       }}
                       title={`${tab.name}`}
                       aria-label={`${tab.name} content`}
