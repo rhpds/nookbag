@@ -55,11 +55,12 @@ body.sr-dragging {
   justify-content: center;
   width: 28px;
   min-height: 72px;
-  background: rgba(26, 26, 26, 0.85);
+  background: rgba(50, 50, 50, 0.9);
   border-radius: 8px 0 0 8px;
   cursor: grab;
-  color: #888;
+  color: #bbb;
   border: none;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
   padding: 0;
   transition: color 0.2s, background 0.2s, width 0.2s;
   touch-action: none;
@@ -70,8 +71,8 @@ body.sr-dragging {
 }
 
 .sr-trigger:hover {
-  color: #ddd;
-  background: rgba(26, 26, 26, 0.95);
+  color: #fff;
+  background: rgba(50, 50, 50, 0.95);
 }
 
 .sr-trigger svg {
@@ -93,7 +94,7 @@ body.sr-dragging {
   flex-direction: column;
   gap: 2px;
   width: 148px;
-  background: #1a1a1a;
+  background: #242424;
   border-radius: 0;
   box-shadow: 2px 0 12px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.08);
   padding: 4px;
@@ -102,7 +103,7 @@ body.sr-dragging {
 
 /* When expanded, merge trigger + panel visually */
 .sr-popout.sr-expanded .sr-trigger {
-  background: #1a1a1a;
+  background: #242424;
 }
 
 /* ── Mode buttons ────────────────────────────────────────────────────────── */
