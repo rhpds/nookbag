@@ -647,13 +647,21 @@ export default function () {
           direction="horizontal"
           cursor="col-resize"
           style={{ display: 'flex', flexDirection: 'row', resize: 'horizontal', height: '100%' }}
-          onDragEnd={(sizes?: number[]) => {
-            // Hack to fix scrollbar issue https://github.com/nathancahill/split/issues/119
+          onDragStart={() => {
+            // Prevent iframes from capturing pointer events during drag, which causes
+            // the gutter drag to stutter/drop when the cursor enters an iframe.
             document.querySelectorAll('iframe').forEach((iframe) => {
-              iframe.style.display = 'none';
-              requestAnimationFrame(() => {
-                iframe.style.display = 'block';
-              });
+              iframe.style.pointerEvents = 'none';
+            });
+          }}
+          onDragEnd={(sizes?: number[]) => {
+            // Re-enable pointer events and force a synchronous reflow so the
+            // browser recalculates iframe scrollbar geometry after the resize.
+            // This replaces the old display:none→block hack (Split.js #119)
+            // which caused a white flash and reset scroll positions.
+            document.querySelectorAll('iframe').forEach((iframe) => {
+              iframe.style.pointerEvents = '';
+              void iframe.offsetHeight;
             });
             // Persist current split width to URL (?w=<percent>) so a refresh restores it
             try {
