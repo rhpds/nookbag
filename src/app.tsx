@@ -117,13 +117,6 @@ function isScriptAvailable(module: TModule, scriptName: Step) {
   return module.scripts.includes(scriptName);
 }
 
-function showSolveBtn(module?: TModule) {
-  if (!module) return false;
-  if (module.solveButton === true) return true;
-  if (!module.scripts) return false;
-  return isScriptAvailable(module, 'solve');
-}
-
 function isTerminalTab(tab: TTab) {
   if (tab.type === 'terminal' || tab.type === 'secondary-terminal') return true;
   return tab.path?.startsWith('/wetty') || tab.path?.startsWith('/tty');
@@ -150,7 +143,7 @@ export default function () {
   const instructionsPanelRef = useRef(null);
   const [loaderStatus, setLoaderStatus] = useState<{
     isLoading: boolean;
-    stage: 'setup' | 'validation' | 'solve' | null;
+    stage: 'setup' | 'validation' | null;
   }>({ isLoading: false, stage: null });
   const searchParams = new URLSearchParams(document.location.search);
   const s = searchParams.get('s');
@@ -525,23 +518,7 @@ export default function () {
     }
   }
 
-  async function executeSolve() {
-    if (isScriptAvailable(modules[currIndex], 'solve')) {
-      setLoaderStatus({ isLoading: true, stage: 'solve' });
-      const executeStageAndGetStatusPromise = executeStageAndGetStatus(modules[currIndex].name, 'solve');
-      const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
-      const [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
-      if (res.Status === 'successful') {
-        setLoaderStatus({ isLoading: false, stage: null });
-      } else {
-        setLoaderStatus({ isLoading: false, stage: null });
-        setValidationMsg({ message: res.Output || '', title: 'Validation Error', type: 'danger' });
-      }
-    }
-  }
-
   async function skipModule() {
-    await executeSolve();
     await handleNext();
   }
 
@@ -604,8 +581,6 @@ export default function () {
             ? 'Environment loading... almost ready!'
             : loaderStatus.stage === 'validation'
             ? 'Validating... standby.'
-            : loaderStatus.stage === 'solve'
-            ? 'Solving... standby.'
             : 'Loading...'
         }
         isVisible={loaderStatus.isLoading}
@@ -716,16 +691,6 @@ export default function () {
                 {currIndex > 0 ? (
                   <Button onClick={handlePrevious} className="lab-actions__previous">
                     Previous
-                  </Button>
-                ) : null}
-                {showSolveBtn(modules[currIndex]) ? (
-                  <Button
-                    style={{ marginLeft: 'auto' }}
-                    variant="secondary"
-                    className="lab-actions__solve"
-                    onClick={executeSolve}
-                  >
-                    Solve
                   </Button>
                 ) : null}
                 <Button style={{ marginLeft: 'auto' }} className="lab-actions__next" onClick={handleNext}>

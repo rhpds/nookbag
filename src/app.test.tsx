@@ -374,7 +374,7 @@ describe('UI Config Integration Tests', () => {
       expect(window.open).toHaveBeenCalledWith('https://docs.example.com/lab-guide', '_blank');
     });
 
-    it('should handle lab progression and solve buttons', async () => {
+    it('should handle lab progression without solve buttons', async () => {
       mockUseSWR.mockImplementation((key) => {
         // First call: configuration files fetch (zero-touch config)
         if (Array.isArray(key) && key.includes('./ui-config.yml')) {
@@ -411,8 +411,8 @@ describe('UI Config Integration Tests', () => {
       );
 
       await waitFor(() => {
-        // Verify solve button is present for first module (lab-setup)
-        expect(screen.getByText('Solve')).toBeInTheDocument();
+        // Verify solve button is NOT present (removed for event build)
+        expect(screen.queryByText('Solve')).not.toBeInTheDocument();
       });
 
       // Test Next button functionality
