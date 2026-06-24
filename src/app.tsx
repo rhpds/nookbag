@@ -232,6 +232,7 @@ export default function () {
     type: 'warning' | 'danger' | 'success';
     message: string;
     title: string;
+    onConfirm?: () => void;
   } | null>(null);
   const tabs = config.tabs?.map((s) => createUrlsFromVars(s)) || [];
 
@@ -548,9 +549,10 @@ export default function () {
   function exitWarning() {
     if (!session?.sessionUuid) {
       setValidationMsg({
-        title: 'Are you sure you want to leave?',
-        message: 'If you wish to exit, simply close this browser tab.',
+        title: 'Are you sure you want to close?',
+        message: 'This will close the current browser tab.',
         type: 'warning',
+        onConfirm: () => window.close(),
       });
     } else {
       exitLab();
@@ -619,9 +621,21 @@ export default function () {
           ) : null}
         </ModalBody>
         <ModalFooter>
-          <Button key="confirm" variant="primary" onClick={() => setValidationMsg(null)}>
+          <Button
+            key="confirm"
+            variant="primary"
+            onClick={() => {
+              validationMsg?.onConfirm?.();
+              setValidationMsg(null);
+            }}
+          >
             Confirm
           </Button>
+          {validationMsg?.onConfirm && (
+            <Button key="cancel" variant="link" onClick={() => setValidationMsg(null)}>
+              Cancel
+            </Button>
+          )}
         </ModalFooter>
       </Modal>
       {showViewSwitcher && (
