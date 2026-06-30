@@ -135,6 +135,7 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
   const [viewportH, setViewportH] = useState(() => window.innerHeight);
 
   const popoutRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const mountedRef = useRef(false);
 
   const drag = useRef<{
@@ -214,6 +215,14 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
     setMode(selected);
   }
 
+  // ── Focus management: move focus into toolbar on expand ────────────────
+  useEffect(() => {
+    if (expanded) {
+      const active = popoutRef.current?.querySelector<HTMLButtonElement>('.sr-mode-btn.sr-active');
+      active?.focus();
+    }
+  }, [expanded]);
+
   // ── Keyboard support ───────────────────────────────────────────────────
 
   // Global Alt+V to cycle through view modes.
@@ -265,6 +274,7 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
     if (e.key === 'Escape' && expanded) {
       e.preventDefault();
       setExpanded(false);
+      triggerRef.current?.focus();
       return;
     }
     if (!expanded) return;
@@ -325,6 +335,7 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
       onKeyDown={onKeyDown}
     >
       <button
+        ref={triggerRef}
         className="sr-trigger"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
