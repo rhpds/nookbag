@@ -126,8 +126,12 @@ body.sr-dragging {
   width: 100%;
 }
 
-.sr-mode-btn:focus:not(:focus-visible) {
+.sr-mode-btn:focus {
   outline: none;
+}
+
+.sr-mode-btn:focus-visible:not(.sr-active) {
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
 }
 
 .sr-mode-btn:hover {

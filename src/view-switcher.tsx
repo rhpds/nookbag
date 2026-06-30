@@ -12,7 +12,8 @@
  * Interaction:
  *   - Hover (with 150ms enter delay) or click to expand
  *   - Mouse-leave (with 400ms delay) or mode selection to collapse
- *   - Keyboard: Enter/Space toggles, Tab navigates, Escape closes
+ *   - Keyboard: Alt+V cycles modes globally, Arrow keys navigate toolbar,
+ *     Enter/Space activates, Escape closes
  *
  * localStorage keys:
  *   sr-panel-mode  — last selected view mode (instructions | split | tabs)
@@ -76,6 +77,11 @@ function isViewMode(value: string | null): value is ViewMode {
   return value !== null && VALID_MODES.includes(value as ViewMode);
 }
 
+function nextMode(current: ViewMode): ViewMode {
+  const idx = VALID_MODES.indexOf(current);
+  return VALID_MODES[(idx + 1) % VALID_MODES.length];
+}
+
 function getUrlViewParam(): ViewMode | null {
   const value = new URLSearchParams(window.location.search).get('view');
   return isViewMode(value) ? value : null;
@@ -129,6 +135,7 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
   const [viewportH, setViewportH] = useState(() => window.innerHeight);
 
   const popoutRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const mountedRef = useRef(false);
 
   const drag = useRef<{
@@ -208,14 +215,85 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
     setMode(selected);
   }
 
+  // ── Focus management: move focus into toolbar on expand ────────────────
+  useEffect(() => {
+    if (expanded) {
+      const active = popoutRef.current?.querySelector<HTMLButtonElement>('.sr-mode-btn.sr-active');
+      active?.focus();
+    }
+  }, [expanded]);
+
   // ── Keyboard support ───────────────────────────────────────────────────
+
+  // Global Alt+V to cycle through view modes.
+  // Also attaches to same-origin iframe documents so the shortcut works
+  // when focus is inside an iframe (e.g. Antora docs, wetty terminal).
+  // Cross-origin iframes can't be reached (browser security) — acceptable.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.altKey && e.key === 'v' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        e.preventDefault();
+        setMode(prev => nextMode(prev));
+      }
+    }
+
+    function tryAttachToIframe(iframe: HTMLIFrameElement) {
+      try { iframe.contentDocument?.addEventListener('keydown', handleKeyDown); } catch (_e) {}
+    }
+
+    function scanIframes() {
+      document.querySelectorAll<HTMLIFrameElement>('iframe').forEach(tryAttachToIframe);
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    scanIframes();
+
+    // Capture-phase load listener catches iframe (re)loads (load doesn't bubble)
+    function onLoad(e: Event) {
+      if (e.target instanceof HTMLIFrameElement) tryAttachToIframe(e.target);
+    }
+    document.addEventListener('load', onLoad, true);
+
+    // Pick up dynamically added iframes
+    const observer = new MutationObserver((mutations) => {
+      if (mutations.some(m => m.addedNodes.length > 0)) scanIframes();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('load', onLoad, true);
+      observer.disconnect();
+      document.querySelectorAll<HTMLIFrameElement>('iframe').forEach(iframe => {
+        try { iframe.contentDocument?.removeEventListener('keydown', handleKeyDown); } catch (_e) {}
+      });
+    };
+  }, []);
+
   function onKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Escape' && expanded) {
       e.preventDefault();
       setExpanded(false);
+      triggerRef.current?.focus();
+      return;
+    }
+    if (!expanded) return;
+    const btns = popoutRef.current?.querySelectorAll<HTMLButtonElement>('.sr-mode-btn');
+    if (!btns?.length) return;
+    const current = Array.from(btns).findIndex(b => b === document.activeElement);
+    if (current < 0) return;
+
+    let next = -1;
+    if (e.key === 'ArrowRight') next = (current + 1) % btns.length;
+    else if (e.key === 'ArrowLeft') next = (current - 1 + btns.length) % btns.length;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = btns.length - 1;
+
+    if (next >= 0) {
+      e.preventDefault();
+      btns[next].focus();
     }
   }
-
 
   // ── Mode persistence & URL sync ────────────────────────────────────────
   useEffect(() => {
@@ -257,6 +335,7 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
       onKeyDown={onKeyDown}
     >
       <button
+        ref={triggerRef}
         className="sr-trigger"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -264,7 +343,7 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
         onPointerCancel={onPointerUp}
         aria-expanded={expanded}
         aria-label="View mode switcher"
-        title="Drag to reposition, click to open"
+        title="Drag to reposition, click to open (Alt+V to cycle)"
       >
         <IcoChevron />
       </button>
@@ -277,7 +356,7 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
               className={`sr-mode-btn${mode === btn.mode ? ' sr-active' : ''}`}
               title={btn.title}
               aria-pressed={mode === btn.mode}
-              tabIndex={expanded ? 0 : -1}
+              tabIndex={expanded ? (mode === btn.mode ? 0 : -1) : -1}
               onClick={() => onModeSelect(btn.mode)}
             >
               <span className="sr-mode-btn__icon" aria-hidden="true"><btn.Icon /></span>
