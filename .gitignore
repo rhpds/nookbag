@@ -9,3 +9,6 @@ coverage
 coverage/
 *.lcov
 .nyc_output
+
+# Personal AI agent overrides (not shared)
+CLAUDE.local.md
