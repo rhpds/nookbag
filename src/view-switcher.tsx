@@ -22,7 +22,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 import './view-switcher.css';
 
-export type ViewMode = 'instructions' | 'split' | 'tabs';
+import { ViewMode } from './config-schema';
+export type { ViewMode } from './config-schema';
 
 type ViewSwitcherProps = {
   defaultMode?: ViewMode;
