@@ -9,6 +9,7 @@ Lab UI shell for Red Hat Demo Platform (RHDP). Renders documentation in a left p
 - **UI library**: PatternFly 6 (`@patternfly/react-core`, `react-icons`, `react-styles`)
 - **Data fetching**: `unfetch` (fetch polyfill) + `swr` (`useSWRImmutable` for cached/deduplicated requests)
 - **Layout**: `react-split` for resizable panes
+- **Validation**: `valibot` for runtime config schema validation
 - **Testing**: Vitest + React Testing Library + jsdom
 - **Container**: UBI 10 (Node 22 builder → httpd-24 runtime)
 - **Config format**: YAML (`js-yaml`), loaded at runtime from `ui-config.yml`
@@ -32,7 +33,8 @@ src/
   index.html          # Vite HTML entry point
   index.tsx           # entry point (React root + ErrorBoundary)
   app.tsx             # main component — config loading, tab/module rendering, navigation
-  types.ts            # shared types (TTab, TModule, TProgress, Step, ModuleSteps)
+  config-schema.ts    # Valibot schema — single source of truth for TConfig, TTab, TModule, ViewMode
+  types.ts            # shared types (TProgress, Step, ModuleSteps) + re-exports from config-schema
   utils.ts            # API helpers (runner API), YAML error formatting, postMessage comms
   progress-header.tsx # module progress bar + remaining time
   progress-bar.tsx    # progress bar segments
@@ -58,6 +60,7 @@ Dockerfile.dev        # dev image with hot reload
 
 - The app is a single-page React app served as static files behind httpd (or Traefik in dev).
 - Config is loaded once at startup from `./ui-config.yml` (falls back to `./zero-touch-config.yml`).
+- Config is runtime-validated via Valibot. The schema in `src/config-schema.ts` is the single source of truth for `TConfig`, `TTab`, `TModule`, and `ViewMode`. Add new config keys there; types are inferred automatically.
 - Lab content (Antora HTML) is mounted at runtime — it is NOT part of this repo. The serve directory defaults to `www` in showroom mode and `antora` in zerotouch mode, configurable via `antora.dir` in `ui-config.yml`.
 - The runner API (`/runner/api/`) is a separate sidecar service — this repo only contains the frontend client code in `utils.ts`.
 - Parent-frame communication uses `postMessage` for `DELETE`, `RESTART`, `COMPLETED` events.
@@ -67,7 +70,7 @@ Dockerfile.dev        # dev image with hot reload
 - Use PatternFly 6 components; do not introduce other UI frameworks or CSS libraries.
 - No `any` casts unless unavoidable (existing casts are tech debt, do not add more).
 - Use `unfetch` for one-shot HTTP calls (runner API); use `swr` (`useSWRImmutable`) for cached/deduplicated data fetching.
-- `TTab` and `TModule` in `types.ts` type the `tabs[]` and `antora.modules[]` arrays; the top-level config shape is currently untyped (`as any` — tech debt). Keep `TTab`/`TModule` as the source of truth for their respective sections.
+- Config schema lives in `src/config-schema.ts` (Valibot). Types are inferred from the schema — do not duplicate type definitions manually. To add a new config key: add it to the schema, and the TypeScript type updates automatically.
 - Tab URL construction logic lives in `createUrlsFromVars()` in `app.tsx` — changes there affect all tab types.
 - CSS is plain `.css` files co-located with components. No CSS modules, no Tailwind, no styled-components.
 - Formatting: `.prettierrc` enforces `singleQuote: true`, `printWidth: 120`. No format script — editor-integration only.

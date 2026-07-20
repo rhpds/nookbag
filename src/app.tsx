@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import yaml from 'js-yaml';
 import fetch from 'unfetch';
 import useSWRImmutable from 'swr/immutable';
+import * as v from 'valibot';
 import {
   Alert,
   Button,
@@ -19,7 +20,8 @@ import ProgressHeader from './progress-header';
 import { executeStageAndGetStatus, API_CONFIG, silentFetcher, exitLab, completeLab, formatYamlError } from './utils';
 import Loading from './loading';
 import ViewSwitcher, { ViewMode } from './view-switcher';
-import { ModuleSteps, Step, TModule, TProgress, TTab } from './types';
+import { ConfigSchema, TConfig, TTab } from './config-schema';
+import { ModuleSteps, Step, TModule, TProgress } from './types';
 
 import './app.css';
 
@@ -206,15 +208,18 @@ export default function () {
   }
   const successfulText = hit.text as string;
   const successfulName = hit.url || './ui-config.yml';
-  let config = {} as {
-    type?: 'showroom' | 'zerotouch' | 'zero-touch';
-    antora?: { modules: TModule[]; name: string; dir?: string; version: string };
-    tabs?: TTab[];
-    view_switcher?: boolean | { enabled?: boolean; default_mode?: ViewMode };
-  };
+  let config: TConfig = {};
   try {
-    config = yaml.load(successfulText) as any;
+    const raw = yaml.load(successfulText);
+    config = v.parse(ConfigSchema, raw);
   } catch (e: unknown) {
+    if (e instanceof v.ValiError) {
+      const issues = e.issues.map((issue) => {
+        const path = issue.path?.map((p) => ('key' in p ? p.key : p)).join('.') || '(root)';
+        return `  - ${path}: ${issue.message}`;
+      });
+      throw new Error(`Invalid configuration (${successfulName}):\n${issues.join('\n')}`);
+    }
     const pretty = formatYamlError(e, successfulText, successfulName || './ui-config.yml');
     throw new Error(pretty);
   }
@@ -237,10 +242,10 @@ export default function () {
 
   // Feature flags (with sensible defaults)
   const skipModuleEnabled = config && Object.prototype.hasOwnProperty.call(config, 'skipModuleEnabled')
-    ? Boolean((config as any).skipModuleEnabled)
+    ? Boolean(config.skipModuleEnabled)
     : true;
   const persistUrlState =
-    isBasicShowroom && Boolean((config as any)?.persist_url_state || (config as any)?.persistUrlState);
+    isBasicShowroom && Boolean(config.persist_url_state || config.persistUrlState);
   const PROGRESS_KEY = session ? `PROGRESS-${session.sessionUuid}` : null;
   const initProgressStr = PROGRESS_KEY ? window.localStorage.getItem(PROGRESS_KEY) : null;
   let initProgress: TProgress = null as unknown as TProgress;
@@ -275,7 +280,7 @@ export default function () {
   });
   const initialFile = `./${antoraDir}/${s_name ? s_name + '/' : ''}${version ? version + '/' : ''}${iframeModule}.html`;
   // View switcher configuration
-  const viewSwitcherConfig = (config as any)?.view_switcher;
+  const viewSwitcherConfig = config.view_switcher;
   const viewSwitcherEnabled =
     viewSwitcherConfig === true ||
     (typeof viewSwitcherConfig === 'object' && viewSwitcherConfig?.enabled !== false);
@@ -592,7 +597,7 @@ export default function () {
   // Determine default left/right column widths for the horizontal Split.
   const widthFromUrl = Number(searchParams.get('w'));
   const hasValidUrlWidth = Number.isFinite(widthFromUrl) && widthFromUrl > 0 && widthFromUrl < 100;
-  const configuredLeftWidth = hasValidUrlWidth ? widthFromUrl : Number((config as any)?.default_width);
+  const configuredLeftWidth = hasValidUrlWidth ? widthFromUrl : Number(config.default_width);
   const hasValidLeftWidth = Number.isFinite(configuredLeftWidth) && configuredLeftWidth > 0 && configuredLeftWidth < 100;
   const leftPaneDefault = Math.max(10, Math.min(90, hasValidLeftWidth ? configuredLeftWidth : 25));
 
