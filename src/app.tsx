@@ -84,6 +84,10 @@ const createUrlsFromVars = (vars: TTab): TTab => {
     vars = updatedVars;
   }
 
+  if (vars.url && vars.url.replace(/^\//, '') === 'placeholder') {
+    vars = { ...vars, url: './placeholder.html' };
+  }
+
   if (vars.url) {
     return {
       ...vars,

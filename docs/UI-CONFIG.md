@@ -28,7 +28,7 @@ This document describes the top-level `ui-config.yml` options and details for co
 | `view_switcher.default_mode` | enum | default: `split` | Initial view mode on first visit. One of `instructions`, `split`, or `tabs`. |
 | `tabs[]` | array (tab objects) | — | Declares the tabs shown in the app. |
 | `tabs[].name` | string | required | Display label and internal key for the tab (must be unique). |
-| `tabs[].url` | string | optional | Full URL to load; if present, overrides `port`/`path` for the primary view. |
+| `tabs[].url` | string | optional | Full URL to load; if present, overrides `port`/`path` for the primary view. Set to `/placeholder` or `placeholder` to show a built-in placeholder page (useful for local content development without a real service). |
 | `tabs[].external` | boolean | optional (default: false) | If true, opens `url` in a new browser tab; otherwise embeds in an iframe. |
 | `tabs[].port` | string or number | optional | Used to construct the URL when `url` is not provided. Final form: `<protocol>//<hostname>:<port><path>`. |
 | `tabs[].path` | string | optional | Appended when using `port`. Examples: `/app`, `/wetty`, `/tty`, `/console`. |
@@ -169,6 +169,28 @@ view_switcher: true
 tabs:
   - name: Console
     url: https://console-openshift-console.apps.example.com
+```
+
+Placeholder tabs for content development
+
+```yaml
+# ui-config.yml
+# Use url: /placeholder (or url: placeholder) as a stand-in when
+# the real service (terminal, console, etc.) is not available.
+
+tabs:
+  - name: Terminal
+    url: /placeholder
+  - name: OCP Console
+    url: /placeholder
+
+# When the services are available, swap in the real URLs:
+#
+# tabs:
+#   - name: Terminal
+#     url: /wetty
+#   - name: OCP Console
+#     url: https://console-openshift-console.apps.example.com
 ```
 
 Disable Skip module button (guided)
