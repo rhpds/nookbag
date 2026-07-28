@@ -23,6 +23,16 @@ COPY --from=builder /antora/dist /var/www/html/antora
 
 The theme used is [nookbag-bundle](https://github.com/rhpds/nookbag-bundle)
 
+## Testing:
+
+```bash
+npm run test:run      # run all tests once (CI mode)
+npm run test          # watch mode (re-runs on file change)
+npm run test:coverage # generate coverage report
+```
+
+Tests use Vitest + React Testing Library (jsdom). Test files live alongside source in `src/` with `.test.ts(x)` suffix. CI runs tests on every push/PR to `main` and `develop` across Linux, macOS, and Windows.
+
 ## Dev server (hot reload):
 
 - Run locally: `npm ci && npm run dev` (serves on `http://localhost:8080/nookbag/`).

@@ -42,9 +42,15 @@ src/
   view-switcher.tsx   # draggable view-mode popout (instructions/split/tabs)
   loading.tsx         # loading overlay
   *.css               # component styles (plain CSS, no modules)
-  test-setup.ts       # vitest setup (jsdom globals)
-  utils.test.ts       # unit tests for utils
-  app.test.tsx        # component tests for app
+  test-setup.ts       # vitest setup (jsdom globals, fetch/localStorage mocks)
+  utils.test.ts       # unit tests: runner API polling, executeStage, silentFetcher, postMessage
+  config-schema.test.ts # schema validation: acceptance, rejection, coercion
+  app.test.tsx        # integration tests: config loading, tab rendering, mode detection
+  view-switcher.test.tsx # mode switching, keyboard shortcuts, persistence
+  progress-bar.test.tsx  # segment rendering, state classes
+  progress-header.test.tsx # modal, navigation, restart button
+  remaining-time.test.tsx  # countdown interval logic
+  loading.test.tsx    # conditional rendering, stage text
   test-configs/       # sample YAML configs for tests
 vite.config.ts        # build config (base path, Traefik HMR wiring, port)
 vitest.config.ts      # test config (jsdom environment, coverage, timeouts)
