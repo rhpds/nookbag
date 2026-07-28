@@ -297,7 +297,7 @@ def _check_readiness_impl() -> tuple[int, dict]:
 
     # Probe nookbag content (fetch index page through Traefik)
     antora = config.get("antora", {}) or {}
-    is_showroom = config.get("type") == "showroom"
+    is_showroom = config.get("type") in ("showroom", "open")
     content_dir = antora.get("dir") or ("www" if is_showroom else "antora")
     content_name = antora.get("name") or "modules"
     version = antora.get("version")

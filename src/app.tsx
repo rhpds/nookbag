@@ -223,7 +223,7 @@ export default function () {
     const pretty = formatYamlError(e, successfulText, successfulName || './ui-config.yml');
     throw new Error(pretty);
   }
-  const isBasicShowroom = config.type === 'showroom';
+  const isBasicShowroom = config.type === 'showroom' || config.type === 'open';
   const { data: configData, error: errConfig } = useSWRImmutable<ModuleSteps>(
     !successfulText || !isBasicShowroom ? API_CONFIG : null,
     silentFetcher,

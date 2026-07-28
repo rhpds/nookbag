@@ -10,6 +10,8 @@ import externalLinksConfig from './test-configs/external-links-config.yml?raw';
 import embeddedWebsiteConfig from './test-configs/embedded-website-config.yml?raw';
 import zeroTouchConfig from './test-configs/zero-touch-lab-config.yml?raw';
 import showroomConfig from './test-configs/showroom-config.yml?raw';
+import openConfig from './test-configs/open-config.yml?raw';
+import guidedConfig from './test-configs/guided-config.yml?raw';
 
 // Mock useSWR (immutable)
 vi.mock('swr/immutable', () => ({
@@ -610,6 +612,100 @@ describe('UI Config Integration Tests', () => {
           const editorIframe = Array.from(iframes).find((iframe) => iframe.src.includes(':3001/editor'));
           expect(editorIframe).toBeTruthy();
         });
+      });
+    });
+
+    describe('Open Configuration (type: open)', () => {
+      it('should behave identically to showroom — no progression controls', async () => {
+        mockUseSWR.mockImplementation((key) => {
+          if (Array.isArray(key) && key.includes('./ui-config.yml')) {
+            return {
+              data: [
+                { url: './ui-config.yml', ok: true, status: 200, statusText: 'OK', text: openConfig },
+                { url: './zero-touch-config.yml', ok: false, status: 404, statusText: 'Not Found', text: null },
+              ],
+              error: null,
+              mutate: vi.fn(),
+              isValidating: false,
+              isLoading: false,
+            };
+          }
+          return {
+            data: null,
+            error: null,
+            mutate: vi.fn(),
+            isValidating: false,
+            isLoading: false,
+          };
+        });
+
+        render(
+          <TestWrapper>
+            <App />
+          </TestWrapper>
+        );
+
+        await waitFor(() => {
+          expect(screen.getByText('Documentation')).toBeInTheDocument();
+          expect(screen.getByText('Local Application')).toBeInTheDocument();
+          expect(screen.getByText('Code Editor')).toBeInTheDocument();
+        });
+
+        expect(screen.queryByText('Exit')).not.toBeInTheDocument();
+        expect(screen.queryByText('Skip module')).not.toBeInTheDocument();
+        expect(screen.queryByText('Next')).not.toBeInTheDocument();
+        expect(screen.queryByText('Previous')).not.toBeInTheDocument();
+        expect(screen.queryByText('Solve')).not.toBeInTheDocument();
+      });
+    });
+
+    describe('Guided Configuration (type: guided)', () => {
+      it('should behave identically to zerotouch — lab progression controls present', async () => {
+        mockUseSWR.mockImplementation((key) => {
+          if (Array.isArray(key) && key.includes('./ui-config.yml')) {
+            return {
+              data: [
+                { url: './ui-config.yml', ok: true, status: 200, statusText: 'OK', text: guidedConfig },
+                { url: './zero-touch-config.yml', ok: false, status: 404, statusText: 'Not Found', text: null },
+              ],
+              error: null,
+              mutate: vi.fn(),
+              isValidating: false,
+              isLoading: false,
+            };
+          }
+          return {
+            data: {
+              'lab-setup': ['setup', 'validation'],
+              'database-connection': ['setup', 'validation', 'solve'],
+              'application-deployment': ['setup', 'validation', 'solve'],
+              'testing-verification': ['validation'],
+            },
+            error: null,
+            mutate: vi.fn(),
+            isValidating: false,
+            isLoading: false,
+          };
+        });
+
+        render(
+          <TestWrapper>
+            <App />
+          </TestWrapper>
+        );
+
+        await waitFor(() => {
+          expect(screen.getByText('Terminal')).toBeInTheDocument();
+          expect(screen.getByText('Code Editor')).toBeInTheDocument();
+          expect(screen.getByText('Database Console')).toBeInTheDocument();
+          expect(screen.getByText('Application Preview')).toBeInTheDocument();
+          expect(screen.getByText('External Docs')).toBeInTheDocument();
+        });
+
+        expect(screen.getByText('Next')).toBeInTheDocument();
+        expect(screen.getByText('Skip module')).toBeInTheDocument();
+        expect(screen.getByText('Exit')).toBeInTheDocument();
+        expect(screen.getByText('Solve')).toBeInTheDocument();
       });
     });
   });

@@ -10,11 +10,11 @@ This document describes the top-level `ui-config.yml` options and details for co
 
 | Key | Type | Required / Default | Description |
 | --- | --- | --- | --- |
-| `type` | enum | — | `showroom`: documentation-only UI. `zerotouch`: enables lab progression controls and automation hooks. (`zero-touch` is still supported as a legacy alias.) |
+| `type` | enum | — | `open`: documentation-only UI (free navigation, no progression controls). `guided`: enables lab progression controls and automation hooks. Legacy aliases: `showroom` (same as `open`), `zerotouch` and `zero-touch` (same as `guided`). |
 | `antora` | object | — | Controls documentation content shown in the left panel iframe. |
-| `skipModuleEnabled` | boolean | optional (default: `true`) | Controls visibility of the "Skip module" button in zerotouch mode. |
+| `skipModuleEnabled` | boolean | optional (default: `true`) | Controls visibility of the "Skip module" button in guided mode. |
 | `antora.name` | string | default: `modules` | Logical root for generated HTML paths. |
-| `antora.dir` | string | default: `www` when `type: showroom`; otherwise `antora` | Directory used for iframe base path. |
+| `antora.dir` | string | default: `www` when `type: open` (or `showroom`); otherwise `antora` | Directory used for iframe base path. |
 | `antora.version` | string | — | Optional version segment included in iframe paths. |
 | `antora.modules[]` | array (module objects) | — | Module order and metadata for the progress header. |
 | `antora.modules[].name` | string | required | Module key/path segment used for navigation and progress tracking. |
@@ -22,7 +22,7 @@ This document describes the top-level `ui-config.yml` options and details for co
 | `antora.modules[].scripts` | array (enum) | optional | Any of `setup`, `validation`, `solve`; enables corresponding automation actions. |
 | `antora.modules[].solveButton` | boolean | optional | Force-enable the Solve button for this module when true. |
 | `default_width` | number (0-100) | default: `25` | Left column width percentage for the main horizontal split. Right column becomes `100 - default_width`. Clamped between 10 and 90. |
-| `persist_url_state` | boolean | default: `false` | Showroom only. When true, saves and restores state via URL query params: left content page as `p`, right active tab as `t`. Alias: `persistUrlState`. |
+| `persist_url_state` | boolean | default: `false` | Open mode only (`type: open` or `showroom`). When true, saves and restores state via URL query params: left content page as `p`, right active tab as `t`. Alias: `persistUrlState`. |
 | `view_switcher` | boolean or object | optional (default: `false`) | Enables a right-edge popout panel for switching between Instructions (full-width left), Split (side by side), and Tabs (full-width right) modes. Set to `true` to enable with defaults, or use an object: `{ enabled: true, default_mode: "split" }`. Keyboard: `Alt+V` cycles through modes globally; arrow keys navigate within the expanded toolbar. View state persists via localStorage and `?view=` URL param (when `persist_url_state` is enabled). |
 | `view_switcher.enabled` | boolean | default: `true` (when object) | Enable or disable the view switcher. |
 | `view_switcher.default_mode` | enum | default: `split` | Initial view mode on first visit. One of `instructions`, `split`, or `tabs`. |
@@ -46,10 +46,10 @@ This document describes the top-level `ui-config.yml` options and details for co
 - Tabs that point to terminal paths (e.g., `/wetty`, `/tty*`) or use terminal-related `type`s get terminal-friendly styling in the iframe.
 - If neither `url` nor `port` is defined for the primary view, the app throws an error: "Port and url not defined".
 - The app builds URLs using the current page's `window.location.protocol` and `window.location.hostname`.
-- When `persist_url_state: true` (Showroom only), the app reads/writes:
+- When `persist_url_state: true` (open mode only), the app reads/writes:
   - Left content page to `?p=<module-or-subpath>`
   - Right active tab to `?t=<tabName>`
-  These params are ignored when `persist_url_state` is false (default) or when `type` is not `showroom`.
+  These params are ignored when `persist_url_state` is false (default) or when the type is not `open` (or `showroom`).
 - The initial left/right split width can be overridden via `?w=<percent>` in the URL (10–90). Dragging the split updates `?w` to persist on refresh.
 
 ### Minimal examples
@@ -143,7 +143,7 @@ View switcher with embedded tabs
 ```yaml
 # ui-config.yml
 
-type: showroom
+type: open
 default_width: 30
 persist_url_state: true
 
@@ -163,7 +163,7 @@ View switcher shorthand (enable with defaults)
 ```yaml
 # ui-config.yml
 
-type: showroom
+type: open
 view_switcher: true
 
 tabs:
@@ -171,12 +171,12 @@ tabs:
     url: https://console-openshift-console.apps.example.com
 ```
 
-Disable Skip module button (zerotouch)
+Disable Skip module button (guided)
 
 ```yaml
 # ui-config.yml
 
-type: zerotouch
+type: guided
 skipModuleEnabled: false
 
 antora:

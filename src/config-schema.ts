@@ -34,7 +34,7 @@ const ViewSwitcherSchema = v.union([
 ]);
 
 export const ConfigSchema = v.looseObject({
-  type: v.optional(v.picklist(['showroom', 'zerotouch', 'zero-touch'])),
+  type: v.optional(v.picklist(['open', 'guided', 'showroom', 'zerotouch', 'zero-touch'])),
   antora: v.optional(v.looseObject({
     modules: v.array(ModuleSchema),
     name: v.optional(v.string()),
