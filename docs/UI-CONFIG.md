@@ -44,7 +44,8 @@ This document describes the top-level `ui-config.yml` options and details for co
 - If `url` is set, the primary content uses it directly; `port`/`path` are ignored for the primary view. Any provided `secondary_*` values are still honored.
 - A refresh icon appears on the currently active embedded tab (when `external: false`) that does not have a `secondary_url`.
 - Tabs that point to terminal paths (e.g., `/wetty`, `/tty*`) or use terminal-related `type`s get terminal-friendly styling in the iframe.
-- If neither `url` nor `port` is defined for the primary view, the app throws an error: "Port and url not defined".
+- If neither `url`, `port`, nor `path` is defined for the primary view, the app throws an error: "Port and url not defined".
+- When only `path` is set (no `url` or `port`), the URL is constructed using the current page's protocol and hostname with the default port (e.g., `path: /wetty` → `https://<hostname>/wetty`).
 - The app builds URLs using the current page's `window.location.protocol` and `window.location.hostname`.
 - When `persist_url_state: true` (open mode only), the app reads/writes:
   - Left content page to `?p=<module-or-subpath>`

@@ -1,0 +1,7 @@
+type: open
+tabs:
+  - name: 'Terminal'
+    path: '/wetty'
+  - name: 'Application'
+    port: '3000'
+    path: '/app'

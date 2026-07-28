@@ -101,7 +101,7 @@ const createUrlsFromVars = (vars: TTab): TTab => {
         : {}),
     };
   }
-  if (!vars.port) {
+  if (!vars.port && !vars.path) {
     throw Error('Port and url not defined');
   }
   return {
