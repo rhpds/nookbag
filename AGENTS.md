@@ -1,6 +1,6 @@
 # Nookbag
 
-Lab UI shell for Red Hat Demo Platform (RHDP). Renders documentation in a left pane (Antora-generated HTML) and embedded service tabs (terminals, consoles, code-server) in a right pane. Supports two modes: `showroom` (documentation-only) and `zerotouch` (guided lab with progress tracking, validation scripts, and solve automation).
+Lab UI shell for Red Hat Demo Platform (RHDP). Renders documentation in a left pane (Antora-generated HTML) and embedded service tabs (terminals, consoles, code-server) in a right pane. Supports two modes: `open` (documentation-only, free navigation) and `guided` (lab with progress tracking, validation scripts, and solve automation). Legacy aliases `showroom` (= `open`) and `zerotouch`/`zero-touch` (= `guided`) are still accepted.
 
 ## Tech Stack
 
@@ -61,7 +61,7 @@ Dockerfile.dev        # dev image with hot reload
 - The app is a single-page React app served as static files behind httpd (or Traefik in dev).
 - Config is loaded once at startup from `./ui-config.yml` (falls back to `./zero-touch-config.yml`).
 - Config is runtime-validated via Valibot. The schema in `src/config-schema.ts` is the single source of truth for `TConfig`, `TTab`, `TModule`, and `ViewMode`. Add new config keys there; types are inferred automatically.
-- Lab content (Antora HTML) is mounted at runtime — it is NOT part of this repo. The serve directory defaults to `www` in showroom mode and `antora` in zerotouch mode, configurable via `antora.dir` in `ui-config.yml`.
+- Lab content (Antora HTML) is mounted at runtime — it is NOT part of this repo. The serve directory defaults to `www` in open mode and `antora` in guided mode, configurable via `antora.dir` in `ui-config.yml`.
 - The runner API (`/runner/api/`) is a separate sidecar service — this repo only contains the frontend client code in `utils.ts`.
 - Parent-frame communication uses `postMessage` for `DELETE`, `RESTART`, `COMPLETED` events.
 
