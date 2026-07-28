@@ -168,7 +168,7 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
   // ── Vertical drag on trigger ───────────────────────────────────────────
   function onPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
     e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
+    e.currentTarget.setPointerCapture?.(e.pointerId);
     const topPx = (yPercent / 100) * window.innerHeight;
     drag.current = {
       startPointerY: e.clientY,
