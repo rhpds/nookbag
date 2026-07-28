@@ -5,7 +5,7 @@ Lab UI shell for Red Hat Demo Platform (RHDP). Renders documentation in a left p
 ## Tech Stack
 
 - **Language**: TypeScript (no tsconfig — types are checked by IDE/editor only, not enforced at build)
-- **Framework**: React 18, Vite 7
+- **Framework**: React 18, Vite 8
 - **UI library**: PatternFly 6 (`@patternfly/react-core`, `react-icons`, `react-styles`)
 - **Data fetching**: `unfetch` (fetch polyfill) + `swr` (`useSWRImmutable` for cached/deduplicated requests)
 - **Layout**: `react-split` for resizable panes
@@ -56,7 +56,6 @@ vite.config.ts        # build config (base path, Traefik HMR wiring, port)
 vitest.config.ts      # test config (jsdom environment, coverage, timeouts)
 docs/
   UI-CONFIG.md        # full reference for ui-config.yml options
-healthz/              # Python sidecar for health/readiness endpoints
 scripts/pack.sh       # build + zip script
 Dockerfile            # production multi-stage (Node build → httpd serve)
 Dockerfile.dev        # dev image with hot reload
@@ -84,7 +83,6 @@ Dockerfile.dev        # dev image with hot reload
 ## Boundaries
 
 - Do not modify files under `dist/` — they are build output.
-- Do not modify files under `healthz/` without explicit request — it is a separate Python service.
 - Do not add new npm dependencies without discussing the need first.
 - The `docs/UI-CONFIG.md` is the user-facing config reference — keep it in sync with any config schema changes.
 - Before considering a change done, run `npm run test:run && npm run build` and fix any failures.
