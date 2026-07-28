@@ -68,13 +68,14 @@ Dockerfile.dev        # dev image with hot reload
 - Config is runtime-validated via Valibot. The schema in `src/config-schema.ts` is the single source of truth for `TConfig`, `TTab`, `TModule`, and `ViewMode`. Add new config keys there; types are inferred automatically.
 - Lab content (Antora HTML) is mounted at runtime — it is NOT part of this repo. The serve directory defaults to `www` in open mode and `antora` in guided mode, configurable via `antora.dir` in `ui-config.yml`.
 - The runner API (`/runner/api/`) is a separate sidecar service — this repo only contains the frontend client code in `utils.ts`.
+- In guided mode, the app fetches module script config from `/runner/api/config` at startup via `configFetcher` (in `utils.ts`). This fetcher tries up to 3 times (5 s timeout each) because the automation service may still be starting when the page loads. It always resolves — either with data or `null` — so `useSWRImmutable` and the Suspense boundary are unaffected.
 - Parent-frame communication uses `postMessage` for `DELETE`, `RESTART`, `COMPLETED` events.
 
 ## Conventions
 
 - Use PatternFly 6 components; do not introduce other UI frameworks or CSS libraries.
 - No `any` casts unless unavoidable (existing casts are tech debt, do not add more).
-- Use `unfetch` for one-shot HTTP calls (runner API); use `swr` (`useSWRImmutable`) for cached/deduplicated data fetching.
+- Use `unfetch` for one-shot HTTP calls (runner API); use `swr` (`useSWRImmutable`) for cached/deduplicated data fetching. For calls that need retry (e.g. waiting for a sidecar to start), implement retry inside the fetcher function itself — do not rely on SWR's `errorRetryCount`, since `suspense: true` would propagate exhausted errors to the `ErrorBoundary`. See `configFetcher` and `getJobStatus` in `utils.ts` for the pattern.
 - Config schema lives in `src/config-schema.ts` (Valibot). Types are inferred from the schema — do not duplicate type definitions manually. To add a new config key: add it to the schema, and the TypeScript type updates automatically.
 - Tab URL construction logic lives in `createUrlsFromVars()` in `app.tsx` — changes there affect all tab types.
 - CSS is plain `.css` files co-located with components. No CSS modules, no Tailwind, no styled-components.
