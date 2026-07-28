@@ -694,6 +694,7 @@ describe('UI Config Integration Tests', () => {
         await waitFor(() => {
           expect(screen.getByText('Terminal')).toBeInTheDocument();
           expect(screen.getByText('OCP Console')).toBeInTheDocument();
+          expect(screen.getByText('Split View')).toBeInTheDocument();
         });
 
         await waitFor(() => {
@@ -701,7 +702,8 @@ describe('UI Config Integration Tests', () => {
           const placeholderIframes = Array.from(iframes).filter((iframe) =>
             iframe.src.includes('placeholder.html')
           );
-          expect(placeholderIframes).toHaveLength(2);
+          // 2 primary (Terminal, OCP Console) + 1 primary + 1 secondary (Split View)
+          expect(placeholderIframes).toHaveLength(4);
         });
       });
     });
