@@ -1,0 +1,10 @@
+type: open
+tabs:
+  - name: 'Terminal'
+    url: '/placeholder'
+  - name: 'OCP Console'
+    url: 'placeholder'
+  - name: 'Split View'
+    url: '/placeholder'
+    secondary_name: 'Secondary'
+    secondary_url: '/placeholder'

@@ -12,6 +12,8 @@ import zeroTouchConfig from './test-configs/zero-touch-lab-config.yml?raw';
 import showroomConfig from './test-configs/showroom-config.yml?raw';
 import openConfig from './test-configs/open-config.yml?raw';
 import guidedConfig from './test-configs/guided-config.yml?raw';
+import placeholderConfig from './test-configs/placeholder-config.yml?raw';
+import pathOnlyConfig from './test-configs/path-only-config.yml?raw';
 
 // Mock useSWR (immutable)
 vi.mock('swr/immutable', () => ({
@@ -656,6 +658,102 @@ describe('UI Config Integration Tests', () => {
         expect(screen.queryByText('Next')).not.toBeInTheDocument();
         expect(screen.queryByText('Previous')).not.toBeInTheDocument();
         expect(screen.queryByText('Solve')).not.toBeInTheDocument();
+      });
+    });
+
+    describe('Placeholder URL', () => {
+      it('should rewrite /placeholder and placeholder URLs to the bundled placeholder page', async () => {
+        mockUseSWR.mockImplementation((key) => {
+          if (Array.isArray(key) && key.includes('./ui-config.yml')) {
+            return {
+              data: [
+                { url: './ui-config.yml', ok: true, status: 200, statusText: 'OK', text: placeholderConfig },
+                { url: './zero-touch-config.yml', ok: false, status: 404, statusText: 'Not Found', text: null },
+              ],
+              error: null,
+              mutate: vi.fn(),
+              isValidating: false,
+              isLoading: false,
+            };
+          }
+          return {
+            data: null,
+            error: null,
+            mutate: vi.fn(),
+            isValidating: false,
+            isLoading: false,
+          };
+        });
+
+        render(
+          <TestWrapper>
+            <App />
+          </TestWrapper>
+        );
+
+        await waitFor(() => {
+          expect(screen.getByText('Terminal')).toBeInTheDocument();
+          expect(screen.getByText('OCP Console')).toBeInTheDocument();
+          expect(screen.getByText('Split View')).toBeInTheDocument();
+        });
+
+        await waitFor(() => {
+          const iframes = document.querySelectorAll('iframe');
+          const placeholderIframes = Array.from(iframes).filter((iframe) =>
+            iframe.src.includes('placeholder.html')
+          );
+          // 2 primary (Terminal, OCP Console) + 1 primary + 1 secondary (Split View)
+          expect(placeholderIframes).toHaveLength(4);
+        });
+      });
+    });
+
+    describe('Path without port', () => {
+      it('should construct URL using default port when only path is set', async () => {
+        mockUseSWR.mockImplementation((key) => {
+          if (Array.isArray(key) && key.includes('./ui-config.yml')) {
+            return {
+              data: [
+                { url: './ui-config.yml', ok: true, status: 200, statusText: 'OK', text: pathOnlyConfig },
+                { url: './zero-touch-config.yml', ok: false, status: 404, statusText: 'Not Found', text: null },
+              ],
+              error: null,
+              mutate: vi.fn(),
+              isValidating: false,
+              isLoading: false,
+            };
+          }
+          return {
+            data: null,
+            error: null,
+            mutate: vi.fn(),
+            isValidating: false,
+            isLoading: false,
+          };
+        });
+
+        render(
+          <TestWrapper>
+            <App />
+          </TestWrapper>
+        );
+
+        await waitFor(() => {
+          expect(screen.getByText('Terminal')).toBeInTheDocument();
+          expect(screen.getByText('Application')).toBeInTheDocument();
+        });
+
+        await waitFor(() => {
+          const iframes = document.querySelectorAll('iframe');
+          const terminalIframe = Array.from(iframes).find((iframe) =>
+            iframe.src.endsWith('/wetty')
+          );
+          expect(terminalIframe).toBeTruthy();
+          expect(terminalIframe!.src).not.toContain(':443');
+
+          const appIframe = Array.from(iframes).find((iframe) => iframe.src.includes(':3000/app'));
+          expect(appIframe).toBeTruthy();
+        });
       });
     });
 

@@ -84,6 +84,13 @@ const createUrlsFromVars = (vars: TTab): TTab => {
     vars = updatedVars;
   }
 
+  if (vars.url && vars.url.replace(/^\//, '') === 'placeholder') {
+    vars = { ...vars, url: './placeholder.html' };
+  }
+  if (vars.secondary_url && vars.secondary_url.replace(/^\//, '') === 'placeholder') {
+    vars = { ...vars, secondary_url: './placeholder.html' };
+  }
+
   if (vars.url) {
     return {
       ...vars,
@@ -97,7 +104,7 @@ const createUrlsFromVars = (vars: TTab): TTab => {
         : {}),
     };
   }
-  if (!vars.port) {
+  if (!vars.port && !vars.path) {
     throw Error('Port and url not defined');
   }
   return {

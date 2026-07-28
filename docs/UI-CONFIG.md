@@ -28,7 +28,7 @@ This document describes the top-level `ui-config.yml` options and details for co
 | `view_switcher.default_mode` | enum | default: `split` | Initial view mode on first visit. One of `instructions`, `split`, or `tabs`. |
 | `tabs[]` | array (tab objects) | — | Declares the tabs shown in the app. |
 | `tabs[].name` | string | required | Display label and internal key for the tab (must be unique). |
-| `tabs[].url` | string | optional | Full URL to load; if present, overrides `port`/`path` for the primary view. |
+| `tabs[].url` | string | optional | Full URL to load; if present, overrides `port`/`path` for the primary view. Set to `/placeholder` or `placeholder` to show a built-in placeholder page (useful for local content development without a real service). |
 | `tabs[].external` | boolean | optional (default: false) | If true, opens `url` in a new browser tab; otherwise embeds in an iframe. |
 | `tabs[].port` | string or number | optional | Used to construct the URL when `url` is not provided. Final form: `<protocol>//<hostname>:<port><path>`. |
 | `tabs[].path` | string | optional | Appended when using `port`. Examples: `/app`, `/wetty`, `/tty`, `/console`. |
@@ -44,7 +44,8 @@ This document describes the top-level `ui-config.yml` options and details for co
 - If `url` is set, the primary content uses it directly; `port`/`path` are ignored for the primary view. Any provided `secondary_*` values are still honored.
 - A refresh icon appears on the currently active embedded tab (when `external: false`) that does not have a `secondary_url`.
 - Tabs that point to terminal paths (e.g., `/wetty`, `/tty*`) or use terminal-related `type`s get terminal-friendly styling in the iframe.
-- If neither `url` nor `port` is defined for the primary view, the app throws an error: "Port and url not defined".
+- If neither `url`, `port`, nor `path` is defined for the primary view, the app throws an error: "Port and url not defined".
+- When only `path` is set (no `url` or `port`), the URL is constructed using the current page's protocol and hostname with the default port (e.g., `path: /wetty` → `https://<hostname>/wetty`).
 - The app builds URLs using the current page's `window.location.protocol` and `window.location.hostname`.
 - When `persist_url_state: true` (open mode only), the app reads/writes:
   - Left content page to `?p=<module-or-subpath>`
@@ -169,6 +170,28 @@ view_switcher: true
 tabs:
   - name: Console
     url: https://console-openshift-console.apps.example.com
+```
+
+Placeholder tabs for content development
+
+```yaml
+# ui-config.yml
+# Use url: /placeholder (or url: placeholder) as a stand-in when
+# the real service (terminal, console, etc.) is not available.
+
+tabs:
+  - name: Terminal
+    url: /placeholder
+  - name: OCP Console
+    url: /placeholder
+
+# When the services are available, swap in the real URLs:
+#
+# tabs:
+#   - name: Terminal
+#     url: /wetty
+#   - name: OCP Console
+#     url: https://console-openshift-console.apps.example.com
 ```
 
 Disable Skip module button (guided)
