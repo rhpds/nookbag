@@ -48,6 +48,22 @@ export async function executeStageAndGetStatus(
 
 export const API_CONFIG = `${API_PATH}/config`;
 export const fetcher = (url: string) => fetch(url).then((r) => r.json());
+export const configFetcher = async (url: string) => {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 2000));
+    try {
+      const res = await Promise.race([
+        fetch(url),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
+      ]);
+      if (res.status === 404) return null;
+      if (res.ok) return res.json();
+    } catch (_err) {
+      // Network error or timeout — automation service may still be starting
+    }
+  }
+  return null;
+};
 export const silentFetcher = async (url: string) => {
   try {
     const res = await fetch(url);

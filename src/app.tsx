@@ -17,7 +17,7 @@ import {
 import Split from 'react-split';
 import { ForwardIcon, RedoIcon } from '@patternfly/react-icons';
 import ProgressHeader from './progress-header';
-import { executeStageAndGetStatus, API_CONFIG, silentFetcher, exitLab, completeLab, formatYamlError } from './utils';
+import { executeStageAndGetStatus, API_CONFIG, configFetcher, exitLab, completeLab, formatYamlError } from './utils';
 import Loading from './loading';
 import ViewSwitcher, { ViewMode } from './view-switcher';
 import { ConfigSchema, TConfig, TTab } from './config-schema';
@@ -233,7 +233,7 @@ export default function () {
   const isBasicShowroom = config.type === 'showroom' || config.type === 'open';
   const { data: configData, error: errConfig } = useSWRImmutable<ModuleSteps>(
     !successfulText || !isBasicShowroom ? API_CONFIG : null,
-    silentFetcher,
+    configFetcher,
     { suspense: true, revalidateOnFocus: false, revalidateOnReconnect: false, revalidateIfStale: false }
   );
   const modules = config?.antora?.modules || [];

@@ -62,6 +62,7 @@ Check `kubectl get pods` output.
 ## Config loading:
 
 - The UI reads its configuration once at startup from `./ui-config.yml` (or `./zero-touch-config.yml` if present).
+- In guided mode, it also fetches module script config (setup/solve/validation) from the runner API (`/runner/api/config`). This fetch tries up to 3 times (5 s timeout each) to handle the case where nookbag loads before the automation service has finished starting. If the service is permanently unavailable, the page loads normally without automation buttons.
 
 ## Build:
 
