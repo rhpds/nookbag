@@ -120,7 +120,7 @@ export function formatYamlError(error: unknown, sourceText: string, sourceName: 
   return pretty;
 }
 
-function getParentOrigin(): string {
+export function getParentOrigin(): string {
   try {
     if (typeof document !== 'undefined' && document.referrer) {
       const ref = new URL(document.referrer);
