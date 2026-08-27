@@ -17,7 +17,7 @@ import {
 import Split from 'react-split';
 import { ForwardIcon, RedoIcon } from '@patternfly/react-icons';
 import ProgressHeader from './progress-header';
-import { executeStageAndGetStatus, API_CONFIG, configFetcher, exitLab, completeLab, formatYamlError } from './utils';
+import { executeStageAndGetStatus, API_CONFIG, configFetcher, exitLab, completeLab, formatYamlError, getParentOrigin } from './utils';
 import Loading from './loading';
 import ViewSwitcher, { ViewMode } from './view-switcher';
 import { ConfigSchema, TConfig, TTab } from './config-schema';
@@ -492,6 +492,7 @@ export default function () {
 
   function handlePrevious() {
     if (currIndex > 0) {
+      window.parent.postMessage({ type: 'ANALYTICS', linkType: 'cta', text: 'Previous', category: 'Lab|Step navigation' }, getParentOrigin());
       setValidationMsg(null);
       const target = modules[currIndex - 1];
       setDefaultTabFor(target);
@@ -502,6 +503,7 @@ export default function () {
   }
 
   async function handleNext() {
+    window.parent.postMessage({ type: 'ANALYTICS', linkType: 'cta', text: currIndex + 1 < modules.length ? 'Next' : 'End', category: 'Lab|Step navigation' }, getParentOrigin());
     setValidationMsg(null);
     let res: { Status: 'failed' | 'successful'; Output?: string } | null = null;
     if (isScriptAvailable(modules[currIndex], 'validation')) {
@@ -538,6 +540,7 @@ export default function () {
   }
 
   async function executeSolve() {
+    window.parent.postMessage({ type: 'ANALYTICS', linkType: 'cta', text: 'Solve', category: 'Lab|Step navigation' }, getParentOrigin());
     if (isScriptAvailable(modules[currIndex], 'solve')) {
       setLoaderStatus({ isLoading: true, stage: 'solve' });
       const executeStageAndGetStatusPromise = executeStageAndGetStatus(modules[currIndex].name, 'solve');
