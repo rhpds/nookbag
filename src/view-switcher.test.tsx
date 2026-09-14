@@ -2,14 +2,40 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import useSWR from 'swr/immutable';
 import ViewSwitcher from './view-switcher';
+import { MockEventSource } from './test-setup';
+
+// Mock useSWR (immutable) — same convention as app.test.tsx. Avoids relying on
+// the real SWR cache (which would leak state between test cases sharing the
+// same /runner/api/config key).
+vi.mock('swr/immutable', () => ({
+  default: vi.fn(() => ({
+    data: null,
+    error: null,
+    mutate: vi.fn(),
+    isValidating: false,
+    isLoading: false,
+  })),
+}));
 
 function setup(props: Partial<React.ComponentProps<typeof ViewSwitcher>> = {}) {
   const onModeChange = props.onModeChange ?? vi.fn();
   const result = render(
-    <ViewSwitcher defaultMode={props.defaultMode ?? 'split'} onModeChange={onModeChange} persistUrlState={props.persistUrlState} />
+    <ViewSwitcher
+      defaultMode={props.defaultMode ?? 'split'}
+      onModeChange={onModeChange}
+      persistUrlState={props.persistUrlState}
+      devMode={props.devMode}
+    />
   );
   return { ...result, onModeChange };
+}
+
+function expandPanel() {
+  const trigger = screen.getByRole('button', { name: 'View mode switcher' });
+  fireEvent.pointerDown(trigger, { pointerId: 1 });
+  fireEvent.pointerUp(trigger, { pointerId: 1 });
 }
 
 describe('ViewSwitcher', () => {
@@ -151,5 +177,84 @@ describe('ViewSwitcher', () => {
 
     expect(screen.getByTitle('Side by side')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTitle('Full-width instructions')).toHaveAttribute('aria-pressed', 'false');
+  });
+});
+
+describe('ViewSwitcher dev mode buttons', () => {
+  const mockUseSWR = vi.mocked(useSWR);
+
+  beforeEach(() => {
+    vi.mocked(window.localStorage.getItem).mockReturnValue(null);
+    mockUseSWR.mockReturnValue({
+      data: null,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+    MockEventSource.instances = [];
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('does not render qa buttons when devMode is false, even if stages are available', () => {
+    mockUseSWR.mockReturnValue({
+      data: { qa: ['healthcheck', 'e2e'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    setup({ devMode: false });
+    expandPanel();
+
+    expect(screen.queryByText('Healthcheck')).not.toBeInTheDocument();
+    expect(screen.queryByText('E2E')).not.toBeInTheDocument();
+  });
+
+  it('does not render qa buttons when devMode is true but no stages are returned', () => {
+    setup({ devMode: true });
+    expandPanel();
+
+    expect(screen.queryByText('Healthcheck')).not.toBeInTheDocument();
+    expect(screen.queryByText('E2E')).not.toBeInTheDocument();
+  });
+
+  it('renders one button per discovered qa stage when devMode is true', () => {
+    mockUseSWR.mockReturnValue({
+      data: { qa: ['healthcheck', 'e2e'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    setup({ devMode: true });
+    expandPanel();
+
+    expect(screen.getByText('Healthcheck')).toBeInTheDocument();
+    expect(screen.getByText('E2E')).toBeInTheDocument();
+  });
+
+  it('opens QaStreamModal for the clicked stage', () => {
+    mockUseSWR.mockReturnValue({
+      data: { qa: ['healthcheck', 'e2e'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    setup({ devMode: true });
+    expandPanel();
+
+    fireEvent.click(screen.getByText('Healthcheck'));
+
+    expect(screen.getByText('GET /stream/qa/healthcheck')).toBeInTheDocument();
+    expect(MockEventSource.instances).toHaveLength(1);
+    expect(MockEventSource.instances[0].url).toBe('/stream/qa/healthcheck');
   });
 });

@@ -120,6 +120,24 @@ export function formatYamlError(error: unknown, sourceText: string, sourceName: 
   return pretty;
 }
 
+/**
+ * Turn a qa-automation stage name (e.g. "healthcheck", "e2e") into a
+ * display label. Short alphanumeric segments containing a digit (like "e2e")
+ * are upper-cased as likely abbreviations; other segments are capitalized.
+ */
+export function formatStageLabel(stage: string): string {
+  return stage
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((word) => {
+      if (word.length <= 4 && /[0-9]/.test(word)) {
+        return word.toUpperCase();
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+}
+
 export function getParentOrigin(): string {
   try {
     if (typeof document !== 'undefined' && document.referrer) {

@@ -1,0 +1,41 @@
+/*
+ * qa-stream-modal.css
+ *
+ * Terminal-style console pane for QaStreamModal, consistent with the
+ * dark, monospace styling used elsewhere for terminal tabs.
+ */
+
+.qa-stream-modal__endpoint {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+
+.qa-stream-modal__console {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 12px;
+  border-radius: 4px;
+  height: 360px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.qa-stream-modal__placeholder {
+  color: #888;
+  font-style: italic;
+}
+
+.qa-stream-modal__line {
+  white-space: pre-wrap;
+}
+
+.qa-stream-modal__error {
+  margin-top: 8px;
+  color: #e2514a;
+  font-size: 13px;
+}

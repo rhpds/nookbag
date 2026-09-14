@@ -293,7 +293,8 @@ export default function () {
     (typeof viewSwitcherConfig === 'object' && viewSwitcherConfig?.enabled !== false);
   const viewSwitcherDefaultMode: ViewMode =
     (typeof viewSwitcherConfig === 'object' && viewSwitcherConfig?.default_mode) || 'split';
-  const showViewSwitcher = viewSwitcherEnabled && tabs.length > 0;
+  const devMode = Boolean(config.dev_mode);
+  const showViewSwitcher = (viewSwitcherEnabled && tabs.length > 0) || devMode;
   const [viewMode, setViewMode] = useState<ViewMode | null>(null);
 
   const showTabsBar =
@@ -644,6 +645,7 @@ export default function () {
           defaultMode={viewSwitcherDefaultMode}
           onModeChange={setViewMode}
           persistUrlState={persistUrlState}
+          devMode={devMode}
         />
       )}
       <div className={`app-wrapper${viewMode === 'instructions' ? ' sr-view-instructions' : viewMode === 'split' ? ' sr-view-split' : viewMode === 'tabs' ? ' sr-view-tabs' : ''}`}>

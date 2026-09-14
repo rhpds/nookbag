@@ -19,11 +19,14 @@
  *   sr-panel-mode  — last selected view mode (instructions | split | tabs)
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import useSWRImmutable from 'swr/immutable';
 
 import './view-switcher.css';
 
 import { ViewMode } from './config-schema';
 export type { ViewMode } from './config-schema';
+import { API_CONFIG, configFetcher, formatStageLabel } from './utils';
+import QaStreamModal from './qa-stream-modal';
 
 type ViewSwitcherProps = {
   defaultMode?: ViewMode;
@@ -35,7 +38,15 @@ type ViewSwitcherProps = {
   onModeChange: (mode: ViewMode) => void;
   /** When true, the ?view= URL param is kept in sync with the active mode */
   persistUrlState?: boolean;
+  /**
+   * When true, renders dev-only qa-automation buttons (Healthcheck, E2E, ...)
+   * in the popout, discovered dynamically from /runner/api/config's `qa` list.
+   */
+  devMode?: boolean;
 };
+
+/** Shape of the subset of /runner/api/config we care about here. */
+type RunnerConfig = { [module: string]: string[] };
 
 const STORE_KEY = 'sr-panel-mode';
 const YPOS_KEY = 'sr-ypos';
@@ -129,11 +140,20 @@ const buttons: { mode: ViewMode; Icon: React.FC; label: string; title: string }[
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function ViewSwitcher({ defaultMode = 'split', onModeChange, persistUrlState }: ViewSwitcherProps) {
+export default function ViewSwitcher({ defaultMode = 'split', onModeChange, persistUrlState, devMode }: ViewSwitcherProps) {
   const [mode, setMode] = useState<ViewMode>(() => getInitialMode(defaultMode));
   const [expanded, setExpanded] = useState(false);
   const [yPercent, setYPercent] = useState(getSavedYPercent);
   const [viewportH, setViewportH] = useState(() => window.innerHeight);
+  const [activeStage, setActiveStage] = useState<string | null>(null);
+
+  // Dev-mode only: discover qa-automation stages once, fail quiet if unavailable.
+  const { data: runnerConfig } = useSWRImmutable<RunnerConfig | null>(
+    devMode ? API_CONFIG : null,
+    configFetcher,
+    { revalidateOnFocus: false, revalidateOnReconnect: false, revalidateIfStale: false }
+  );
+  const qaStages: string[] = devMode && runnerConfig && Array.isArray(runnerConfig.qa) ? runnerConfig.qa : [];
 
   const popoutRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -365,8 +385,25 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
             </button>
           </React.Fragment>
         ))}
+        {qaStages.length > 0 && (
+          <>
+            <div className="sr-sep" aria-hidden="true" />
+            {qaStages.map((stage) => (
+              <button
+                key={stage}
+                className="sr-dev-btn"
+                title={`Run ${formatStageLabel(stage)} (dev mode)`}
+                tabIndex={expanded ? 0 : -1}
+                onClick={() => setActiveStage(stage)}
+              >
+                <span className="sr-mode-btn__label">{formatStageLabel(stage)}</span>
+              </button>
+            ))}
+          </>
+        )}
       </div>
     </div>
+    {activeStage && <QaStreamModal stage={activeStage} onClose={() => setActiveStage(null)} />}
     </>
   );
 }
