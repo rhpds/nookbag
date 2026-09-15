@@ -299,7 +299,7 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
       return;
     }
     if (!expanded) return;
-    const btns = popoutRef.current?.querySelectorAll<HTMLButtonElement>('.sr-mode-btn');
+    const btns = popoutRef.current?.querySelectorAll<HTMLButtonElement>('.sr-mode-btn, .sr-dev-btn');
     if (!btns?.length) return;
     const current = Array.from(btns).findIndex(b => b === document.activeElement);
     if (current < 0) return;
@@ -393,10 +393,14 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
                 key={stage}
                 className="sr-dev-btn"
                 title={`Run ${formatStageLabel(stage)} (dev mode)`}
-                tabIndex={expanded ? 0 : -1}
+                // Not a Tab stop: like the mode buttons, these are reached via
+                // the roving-tabindex arrow-key navigation in onKeyDown, not
+                // independently via Tab. Keeps keyboard behavior consistent
+                // for the whole expanded toolbar.
+                tabIndex={-1}
                 onClick={() => setActiveStage(stage)}
               >
-                <span className="sr-mode-btn__label">{formatStageLabel(stage)}</span>
+                <span className="sr-dev-btn__label">{formatStageLabel(stage)}</span>
               </button>
             ))}
           </>

@@ -257,4 +257,49 @@ describe('ViewSwitcher dev mode buttons', () => {
     expect(MockEventSource.instances).toHaveLength(1);
     expect(MockEventSource.instances[0].url).toBe('/stream/qa/healthcheck');
   });
+
+  it('qa buttons are not independent Tab stops (tabIndex -1), consistent with mode buttons', () => {
+    mockUseSWR.mockReturnValue({
+      data: { qa: ['healthcheck', 'e2e'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    setup({ devMode: true });
+    expandPanel();
+
+    expect(screen.getByText('Healthcheck').closest('button')).toHaveAttribute('tabIndex', '-1');
+    expect(screen.getByText('E2E').closest('button')).toHaveAttribute('tabIndex', '-1');
+  });
+
+  it('ArrowRight/ArrowLeft roving navigation reaches qa buttons from the mode buttons', () => {
+    mockUseSWR.mockReturnValue({
+      data: { qa: ['healthcheck', 'e2e'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    setup({ devMode: true });
+    expandPanel();
+
+    const toolbar = screen.getByRole('toolbar', { name: 'View mode switcher' });
+    const active = toolbar.querySelector<HTMLButtonElement>('.sr-mode-btn.sr-active');
+    active?.focus();
+
+    // Split (active) -> Tabs -> Healthcheck -> E2E
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByText('Healthcheck').closest('button'));
+
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByText('E2E').closest('button'));
+
+    // Wraps back around to the first mode button (Instructions)
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toHaveAttribute('title', expect.stringContaining('Full-width instructions'));
+  });
 });

@@ -180,6 +180,14 @@ body.sr-dragging {
   width: 100%;
 }
 
+/* Dev buttons have no icon, so — unlike .sr-mode-btn__label — their label
+   must never be hidden by the icon-only responsive rule below, or the
+   button would render completely blank. Truncate instead of hiding. */
+.sr-dev-btn__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .sr-dev-btn:focus {
   outline: none;
 }
@@ -218,6 +226,12 @@ body.sr-dragging {
   }
   .sr-panel {
     width: 48px;
+  }
+  /* Dev buttons have no icon to fall back on, so keep their (truncated)
+     text label visible rather than going icon-only and rendering blank. */
+  .sr-dev-btn {
+    padding: 9px 4px;
+    font-size: 10px;
   }
 }
 
