@@ -36,3 +36,28 @@ Object.defineProperty(HTMLIFrameElement.prototype, 'contentWindow', {
     };
   },
 });
+
+// jsdom does not implement Element.scrollTo — app.tsx's goToTop() calls it on
+// every module navigation (Next/Previous/progress-header jump).
+Element.prototype.scrollTo = vi.fn();
+
+// Minimal EventSource mock for SSE-based components (QaStreamModal). Tests can
+// import MockEventSource to inspect/drive instances via `.onmessage`/`.onerror`.
+export class MockEventSource {
+  static instances: MockEventSource[] = [];
+  url: string;
+  onmessage: ((event: MessageEvent) => void) | null = null;
+  onerror: ((event: Event) => void) | null = null;
+  close = vi.fn();
+
+  constructor(url: string) {
+    this.url = url;
+    MockEventSource.instances.push(this);
+  }
+}
+
+Object.defineProperty(window, 'EventSource', {
+  value: MockEventSource,
+  writable: true,
+});
+(globalThis as unknown as { EventSource: typeof MockEventSource }).EventSource = MockEventSource;

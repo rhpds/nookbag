@@ -2,14 +2,42 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import useSWR from 'swr/immutable';
 import ViewSwitcher from './view-switcher';
+import { MockEventSource } from './test-setup';
+
+// Mock useSWR (immutable) — same convention as app.test.tsx. Avoids relying on
+// the real SWR cache (which would leak state between test cases sharing the
+// same /runner/api/config key).
+vi.mock('swr/immutable', () => ({
+  default: vi.fn(() => ({
+    data: null,
+    error: null,
+    mutate: vi.fn(),
+    isValidating: false,
+    isLoading: false,
+  })),
+}));
 
 function setup(props: Partial<React.ComponentProps<typeof ViewSwitcher>> = {}) {
   const onModeChange = props.onModeChange ?? vi.fn();
+  const onAutomationModeChange = props.onAutomationModeChange ?? vi.fn();
   const result = render(
-    <ViewSwitcher defaultMode={props.defaultMode ?? 'split'} onModeChange={onModeChange} persistUrlState={props.persistUrlState} />
+    <ViewSwitcher
+      defaultMode={props.defaultMode ?? 'split'}
+      onModeChange={onModeChange}
+      persistUrlState={props.persistUrlState}
+      devMode={props.devMode}
+      onAutomationModeChange={onAutomationModeChange}
+    />
   );
-  return { ...result, onModeChange };
+  return { ...result, onModeChange, onAutomationModeChange };
+}
+
+function expandPanel() {
+  const trigger = screen.getByRole('button', { name: 'View mode switcher' });
+  fireEvent.pointerDown(trigger, { pointerId: 1 });
+  fireEvent.pointerUp(trigger, { pointerId: 1 });
 }
 
 describe('ViewSwitcher', () => {
@@ -151,5 +179,214 @@ describe('ViewSwitcher', () => {
 
     expect(screen.getByTitle('Side by side')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTitle('Full-width instructions')).toHaveAttribute('aria-pressed', 'false');
+  });
+});
+
+describe('ViewSwitcher dev mode buttons', () => {
+  const mockUseSWR = vi.mocked(useSWR);
+
+  beforeEach(() => {
+    vi.mocked(window.localStorage.getItem).mockReturnValue(null);
+    mockUseSWR.mockReturnValue({
+      data: null,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+    MockEventSource.instances = [];
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('does not render qa buttons when devMode is false, even if stages are available', () => {
+    mockUseSWR.mockReturnValue({
+      data: { qa: ['healthcheck', 'e2e'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    setup({ devMode: false });
+    expandPanel();
+
+    expect(screen.queryByText('Healthcheck')).not.toBeInTheDocument();
+    expect(screen.queryByText('E2E')).not.toBeInTheDocument();
+  });
+
+  it('does not render qa buttons when devMode is true but no stages are returned', () => {
+    setup({ devMode: true });
+    expandPanel();
+
+    expect(screen.queryByText('Healthcheck')).not.toBeInTheDocument();
+    expect(screen.queryByText('E2E')).not.toBeInTheDocument();
+  });
+
+  it('renders one button per discovered qa stage when devMode is true', () => {
+    mockUseSWR.mockReturnValue({
+      data: { qa: ['healthcheck', 'e2e'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    setup({ devMode: true });
+    expandPanel();
+
+    expect(screen.getByText('Healthcheck')).toBeInTheDocument();
+    expect(screen.getByText('E2E')).toBeInTheDocument();
+  });
+
+  it('opens QaStreamModal for the clicked stage', () => {
+    mockUseSWR.mockReturnValue({
+      data: { qa: ['healthcheck', 'e2e'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    setup({ devMode: true });
+    expandPanel();
+
+    fireEvent.click(screen.getByText('Healthcheck'));
+
+    expect(screen.getByText('GET /stream/qa/healthcheck')).toBeInTheDocument();
+    expect(MockEventSource.instances).toHaveLength(1);
+    expect(MockEventSource.instances[0].url).toBe('/stream/qa/healthcheck');
+  });
+
+  it('qa buttons are not independent Tab stops (tabIndex -1), consistent with mode buttons', () => {
+    mockUseSWR.mockReturnValue({
+      data: { qa: ['healthcheck', 'e2e'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    setup({ devMode: true });
+    expandPanel();
+
+    expect(screen.getByText('Healthcheck').closest('button')).toHaveAttribute('tabIndex', '-1');
+    expect(screen.getByText('E2E').closest('button')).toHaveAttribute('tabIndex', '-1');
+  });
+
+  it('ArrowRight/ArrowLeft roving navigation reaches qa buttons from the mode buttons', () => {
+    mockUseSWR.mockReturnValue({
+      data: { qa: ['healthcheck', 'e2e'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    setup({ devMode: true });
+    expandPanel();
+
+    const toolbar = screen.getByRole('toolbar', { name: 'View mode switcher' });
+    const active = toolbar.querySelector<HTMLButtonElement>('.sr-mode-btn.sr-active');
+    active?.focus();
+
+    // Split (active) -> Tabs -> Normal -> Background -> Disabled -> Healthcheck -> E2E
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByText('Normal').closest('button'));
+
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByText('Background').closest('button'));
+
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByText('Disabled').closest('button'));
+
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByText('Healthcheck').closest('button'));
+
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByText('E2E').closest('button'));
+
+    // Wraps back around to the first mode button (Instructions)
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toHaveAttribute('title', expect.stringContaining('Full-width instructions'));
+  });
+});
+
+describe('ViewSwitcher automation-mode buttons', () => {
+  beforeEach(() => {
+    vi.mocked(window.localStorage.getItem).mockReturnValue(null);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('does not render automation-mode buttons when devMode is false', () => {
+    setup({ devMode: false });
+    expandPanel();
+
+    expect(screen.queryByText('Normal')).not.toBeInTheDocument();
+    expect(screen.queryByText('Background')).not.toBeInTheDocument();
+    expect(screen.queryByText('Disabled')).not.toBeInTheDocument();
+  });
+
+  it('renders Normal/Background/Disabled buttons when devMode is true, defaulting to Normal', () => {
+    setup({ devMode: true });
+    expandPanel();
+
+    expect(screen.getByText('Normal')).toBeInTheDocument();
+    expect(screen.getByText('Background')).toBeInTheDocument();
+    expect(screen.getByText('Disabled')).toBeInTheDocument();
+    expect(screen.getByText('Normal').closest('button')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Background').closest('button')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('calls onAutomationModeChange with the restored/default mode on mount', () => {
+    const onAutomationModeChange = vi.fn();
+    render(<ViewSwitcher defaultMode="split" onModeChange={vi.fn()} devMode onAutomationModeChange={onAutomationModeChange} />);
+    expect(onAutomationModeChange).toHaveBeenCalledWith('normal');
+  });
+
+  it('clicking Background calls onAutomationModeChange and persists to localStorage', () => {
+    const { onAutomationModeChange } = setup({ devMode: true });
+    expandPanel();
+
+    fireEvent.click(screen.getByText('Background'));
+
+    expect(onAutomationModeChange).toHaveBeenCalledWith('background');
+    expect(window.localStorage.setItem).toHaveBeenCalledWith('sr-automation-mode', 'background');
+  });
+
+  it('clicking Disabled updates the active button state', () => {
+    setup({ devMode: true });
+    expandPanel();
+
+    fireEvent.click(screen.getByText('Disabled'));
+
+    expect(screen.getByText('Disabled').closest('button')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Normal').closest('button')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('restores automation mode from localStorage on mount', () => {
+    vi.mocked(window.localStorage.getItem).mockImplementation((key) => {
+      if (key === 'sr-automation-mode') return 'disabled';
+      return null;
+    });
+
+    const onAutomationModeChange = vi.fn();
+    render(<ViewSwitcher defaultMode="split" onModeChange={vi.fn()} devMode onAutomationModeChange={onAutomationModeChange} />);
+    expect(onAutomationModeChange).toHaveBeenCalledWith('disabled');
+  });
+
+  it('automation buttons use roving tabIndex (active button is a tab stop, others are not)', () => {
+    setup({ devMode: true });
+    expandPanel();
+
+    expect(screen.getByText('Normal').closest('button')).toHaveAttribute('tabIndex', '0');
+    expect(screen.getByText('Background').closest('button')).toHaveAttribute('tabIndex', '-1');
+    expect(screen.getByText('Disabled').closest('button')).toHaveAttribute('tabIndex', '-1');
   });
 });

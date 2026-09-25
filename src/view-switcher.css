@@ -158,6 +158,106 @@ body.sr-dragging {
   flex-shrink: 0;
 }
 
+/* ── Dev-mode buttons (qa-automation) — same look as mode buttons, but no
+   persistent "active" state since they trigger a one-off modal, not a mode ── */
+
+.sr-dev-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #999;
+  background: transparent;
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+  line-height: 1;
+  width: 100%;
+}
+
+/* Dev buttons have no icon, so — unlike .sr-mode-btn__label — their label
+   must never be hidden by the icon-only responsive rule below, or the
+   button would render completely blank. Truncate instead of hiding. */
+.sr-dev-btn__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sr-dev-btn:focus {
+  outline: none;
+}
+
+.sr-dev-btn:focus-visible {
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
+}
+
+.sr-dev-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ── Automation-mode buttons (dev-only) — same visual language as view-mode
+   buttons; a persistent 3-way selector rather than one-off actions. ────── */
+
+.sr-section-label {
+  padding: 6px 14px 2px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #777;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sr-auto-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #999;
+  background: transparent;
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+  line-height: 1;
+  width: 100%;
+}
+
+.sr-auto-btn:focus {
+  outline: none;
+}
+
+.sr-auto-btn:focus-visible:not(.sr-active) {
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
+}
+
+.sr-auto-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sr-auto-btn.sr-active {
+  color: #fff;
+  background: #ee0000;
+  box-shadow: 0 2px 8px rgba(238, 0, 0, 0.35);
+}
+
+.sr-auto-btn__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ── Separator between buttons ───────────────────────────────────────────── */
 
 .sr-sep {
@@ -183,6 +283,13 @@ body.sr-dragging {
   }
   .sr-panel {
     width: 48px;
+  }
+  /* Dev buttons have no icon to fall back on, so keep their (truncated)
+     text label visible rather than going icon-only and rendering blank. */
+  .sr-dev-btn,
+  .sr-auto-btn {
+    padding: 9px 4px;
+    font-size: 10px;
   }
 }
 

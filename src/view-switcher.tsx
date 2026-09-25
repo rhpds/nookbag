@@ -16,14 +16,27 @@
  *     Enter/Space activates, Escape closes
  *
  * localStorage keys:
- *   sr-panel-mode  — last selected view mode (instructions | split | tabs)
+ *   sr-panel-mode      — last selected view mode (instructions | split | tabs)
+ *   sr-automation-mode — last selected dev-mode automation mode (normal | background | disabled)
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import useSWRImmutable from 'swr/immutable';
 
 import './view-switcher.css';
 
 import { ViewMode } from './config-schema';
 export type { ViewMode } from './config-schema';
+import { API_CONFIG, configFetcher, formatStageLabel } from './utils';
+import QaStreamModal from './qa-stream-modal';
+
+/**
+ * Dev-mode-only automation mode. Controls how the Next/Prev/Solve actions in
+ * app.tsx interact with the runner API's setup/validation/solve scripts:
+ *   normal     — current behavior: calls block navigation, errors surface (default)
+ *   background — calls still fire, but navigation never waits and errors are ignored
+ *   disabled   — calls are never made at all; navigation always proceeds
+ */
+export type AutomationMode = 'normal' | 'background' | 'disabled';
 
 type ViewSwitcherProps = {
   defaultMode?: ViewMode;
@@ -35,10 +48,29 @@ type ViewSwitcherProps = {
   onModeChange: (mode: ViewMode) => void;
   /** When true, the ?view= URL param is kept in sync with the active mode */
   persistUrlState?: boolean;
+  /**
+   * When true, renders dev-only qa-automation buttons (Healthcheck, E2E, ...)
+   * in the popout, discovered dynamically from /runner/api/config's `qa` list.
+   * Also enables the Normal/Background/Disabled automation-mode control.
+   */
+  devMode?: boolean;
+  /**
+   * Called whenever the dev-mode automation mode changes (including once on
+   * mount, to report a value restored from localStorage). Internally
+   * stabilised via a ref, same contract as onModeChange. Only meaningful
+   * when devMode is true — consumers should still apply their own safety
+   * check (e.g. ignore this unless their own devMode flag is true) since a
+   * stale localStorage value could otherwise leak into a non-dev deployment.
+   */
+  onAutomationModeChange?: (mode: AutomationMode) => void;
 };
+
+/** Shape of the subset of /runner/api/config we care about here. */
+type RunnerConfig = { [module: string]: string[] };
 
 const STORE_KEY = 'sr-panel-mode';
 const YPOS_KEY = 'sr-ypos';
+const AUTOMATION_STORE_KEY = 'sr-automation-mode';
 
 const DRAG_THRESHOLD = 5;
 const CLAMP_MARGIN = 40;
@@ -110,6 +142,21 @@ function getInitialMode(defaultMode: ViewMode): ViewMode {
   return defaultMode;
 }
 
+const VALID_AUTOMATION_MODES: AutomationMode[] = ['normal', 'background', 'disabled'];
+
+function isAutomationMode(value: string | null): value is AutomationMode {
+  return value !== null && VALID_AUTOMATION_MODES.includes(value as AutomationMode);
+}
+
+/** No URL-param support here (unlike view mode) — intentionally not shareable via a link. */
+function getInitialAutomationMode(): AutomationMode {
+  try {
+    const fromStore = window.localStorage.getItem(AUTOMATION_STORE_KEY);
+    if (isAutomationMode(fromStore)) return fromStore;
+  } catch (_e) {}
+  return 'normal';
+}
+
 function getSavedYPercent(): number {
   try {
     const raw = window.localStorage.getItem(YPOS_KEY);
@@ -127,17 +174,41 @@ const buttons: { mode: ViewMode; Icon: React.FC; label: string; title: string }[
   { mode: 'tabs',         Icon: IcoTabs,  label: 'Tabs',         title: 'Full-width tabs' },
 ];
 
+/** Dev-mode-only automation-mode buttons — see AutomationMode above. */
+const automationButtons: { mode: AutomationMode; label: string; title: string }[] = [
+  { mode: 'normal',     label: 'Normal',     title: 'Automation calls block navigation and can show errors (default)' },
+  { mode: 'background', label: 'Background', title: 'Next/Prev navigate immediately; automation calls still run in the background, errors ignored' },
+  { mode: 'disabled',   label: 'Disabled',   title: 'Automation calls are skipped entirely; Next/Prev just navigate' },
+];
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function ViewSwitcher({ defaultMode = 'split', onModeChange, persistUrlState }: ViewSwitcherProps) {
+export default function ViewSwitcher({
+  defaultMode = 'split',
+  onModeChange,
+  persistUrlState,
+  devMode,
+  onAutomationModeChange,
+}: ViewSwitcherProps) {
   const [mode, setMode] = useState<ViewMode>(() => getInitialMode(defaultMode));
+  const [automationMode, setAutomationMode] = useState<AutomationMode>(getInitialAutomationMode);
   const [expanded, setExpanded] = useState(false);
   const [yPercent, setYPercent] = useState(getSavedYPercent);
   const [viewportH, setViewportH] = useState(() => window.innerHeight);
+  const [activeStage, setActiveStage] = useState<string | null>(null);
+
+  // Dev-mode only: discover qa-automation stages once, fail quiet if unavailable.
+  const { data: runnerConfig } = useSWRImmutable<RunnerConfig | null>(
+    devMode ? API_CONFIG : null,
+    configFetcher,
+    { revalidateOnFocus: false, revalidateOnReconnect: false, revalidateIfStale: false }
+  );
+  const qaStages: string[] = devMode && runnerConfig && Array.isArray(runnerConfig.qa) ? runnerConfig.qa : [];
 
   const popoutRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const mountedRef = useRef(false);
+  const automationMountedRef = useRef(false);
 
   const drag = useRef<{
     startPointerY: number;
@@ -149,6 +220,11 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
   const onModeChangeRef = useRef(onModeChange);
   useEffect(() => { onModeChangeRef.current = onModeChange; }, [onModeChange]);
   const stableOnModeChange = useCallback((m: ViewMode) => onModeChangeRef.current(m), []);
+
+  // Stabilise the onAutomationModeChange callback (same contract as onModeChange)
+  const onAutomationModeChangeRef = useRef(onAutomationModeChange);
+  useEffect(() => { onAutomationModeChangeRef.current = onAutomationModeChange; }, [onAutomationModeChange]);
+  const stableOnAutomationModeChange = useCallback((m: AutomationMode) => onAutomationModeChangeRef.current?.(m), []);
 
   // ── Track viewport height and re-clamp position on resize ──────────────
   useEffect(() => {
@@ -279,7 +355,7 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
       return;
     }
     if (!expanded) return;
-    const btns = popoutRef.current?.querySelectorAll<HTMLButtonElement>('.sr-mode-btn');
+    const btns = popoutRef.current?.querySelectorAll<HTMLButtonElement>('.sr-mode-btn, .sr-auto-btn, .sr-dev-btn');
     if (!btns?.length) return;
     const current = Array.from(btns).findIndex(b => b === document.activeElement);
     if (current < 0) return;
@@ -307,6 +383,19 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
     }
     mountedRef.current = true;
   }, [mode, stableOnModeChange, persistUrlState]);
+
+  // ── Automation-mode persistence (dev-mode only) ─────────────────────────
+  // Notifies on mount too (not just on change) so a consumer picks up a
+  // value restored from localStorage from a previous dev session.
+  useEffect(() => {
+    stableOnAutomationModeChange(automationMode);
+    if (automationMountedRef.current) {
+      try {
+        window.localStorage.setItem(AUTOMATION_STORE_KEY, automationMode);
+      } catch (_e) {}
+    }
+    automationMountedRef.current = true;
+  }, [automationMode, stableOnAutomationModeChange]);
 
   useEffect(() => {
     if (!persistUrlState) return;
@@ -365,8 +454,48 @@ export default function ViewSwitcher({ defaultMode = 'split', onModeChange, pers
             </button>
           </React.Fragment>
         ))}
+        {devMode && (
+          <>
+            <div className="sr-sep" aria-hidden="true" />
+            <div className="sr-section-label" aria-hidden="true">Automation (dev)</div>
+            {automationButtons.map((btn) => (
+              <button
+                key={btn.mode}
+                className={`sr-auto-btn${automationMode === btn.mode ? ' sr-active' : ''}`}
+                title={btn.title}
+                aria-pressed={automationMode === btn.mode}
+                aria-label={`Automation: ${btn.label}`}
+                tabIndex={expanded ? (automationMode === btn.mode ? 0 : -1) : -1}
+                onClick={() => setAutomationMode(btn.mode)}
+              >
+                <span className="sr-auto-btn__label">{btn.label}</span>
+              </button>
+            ))}
+          </>
+        )}
+        {qaStages.length > 0 && (
+          <>
+            <div className="sr-sep" aria-hidden="true" />
+            {qaStages.map((stage) => (
+              <button
+                key={stage}
+                className="sr-dev-btn"
+                title={`Run ${formatStageLabel(stage)} (dev mode)`}
+                // Not a Tab stop: like the mode buttons, these are reached via
+                // the roving-tabindex arrow-key navigation in onKeyDown, not
+                // independently via Tab. Keeps keyboard behavior consistent
+                // for the whole expanded toolbar.
+                tabIndex={-1}
+                onClick={() => setActiveStage(stage)}
+              >
+                <span className="sr-dev-btn__label">{formatStageLabel(stage)}</span>
+              </button>
+            ))}
+          </>
+        )}
       </div>
     </div>
+    {activeStage && <QaStreamModal stage={activeStage} onClose={() => setActiveStage(null)} />}
     </>
   );
 }
