@@ -10,17 +10,24 @@ function latestInstance(): MockEventSource {
   return instance;
 }
 
+/** Confirms the pending run — the point at which the EventSource actually opens. */
+function clickRun() {
+  fireEvent.click(screen.getByRole('button', { name: 'Run' }));
+}
+
 describe('QaStreamModal', () => {
   beforeEach(() => {
     MockEventSource.instances = [];
   });
 
-  it('opens an EventSource to /stream/qa/{stage} on mount and shows the endpoint', () => {
+  it('opens in an idle confirmation state and does not open an EventSource on mount', () => {
     render(<QaStreamModal stage="healthcheck" onClose={vi.fn()} />);
 
-    expect(MockEventSource.instances).toHaveLength(1);
-    expect(latestInstance().url).toBe('/stream/qa/healthcheck');
+    expect(MockEventSource.instances).toHaveLength(0);
     expect(screen.getByText('GET /stream/qa/healthcheck')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Run' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    expect(screen.getByText(/Run Healthcheck now\?/)).toBeInTheDocument();
   });
 
   it('shows a formatted title for the stage', () => {
@@ -28,8 +35,28 @@ describe('QaStreamModal', () => {
     expect(screen.getByText('E2E')).toBeInTheDocument();
   });
 
+  it('Cancel calls onClose without ever opening an EventSource', () => {
+    const onClose = vi.fn();
+    render(<QaStreamModal stage="healthcheck" onClose={onClose} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(onClose).toHaveBeenCalled();
+    expect(MockEventSource.instances).toHaveLength(0);
+  });
+
+  it('clicking Run opens an EventSource to /stream/qa/{stage}', () => {
+    render(<QaStreamModal stage="healthcheck" onClose={vi.fn()} />);
+
+    clickRun();
+
+    expect(MockEventSource.instances).toHaveLength(1);
+    expect(latestInstance().url).toBe('/stream/qa/healthcheck');
+  });
+
   it('appends JSON-encoded output lines to the console', () => {
     render(<QaStreamModal stage="healthcheck" onClose={vi.fn()} />);
+    clickRun();
     const es = latestInstance();
 
     act(() => {
@@ -43,6 +70,7 @@ describe('QaStreamModal', () => {
 
   it('handles the plain-text "Starting..." line (not JSON-encoded)', () => {
     render(<QaStreamModal stage="healthcheck" onClose={vi.fn()} />);
+    clickRun();
     const es = latestInstance();
 
     act(() => {
@@ -54,6 +82,7 @@ describe('QaStreamModal', () => {
 
   it('closes the EventSource and disables Retry while running, re-enabling on __DONE__', () => {
     render(<QaStreamModal stage="healthcheck" onClose={vi.fn()} />);
+    clickRun();
     const es = latestInstance();
 
     expect(screen.getByRole('button', { name: 'Retry' })).toBeDisabled();
@@ -68,6 +97,7 @@ describe('QaStreamModal', () => {
 
   it('shows an error and closes the stream on onerror, without leaving it open for auto-retry', () => {
     render(<QaStreamModal stage="healthcheck" onClose={vi.fn()} />);
+    clickRun();
     const es = latestInstance();
 
     act(() => {
@@ -81,6 +111,7 @@ describe('QaStreamModal', () => {
 
   it('Retry clears prior output and opens a fresh EventSource', () => {
     render(<QaStreamModal stage="healthcheck" onClose={vi.fn()} />);
+    clickRun();
     const first = latestInstance();
 
     act(() => {
@@ -99,6 +130,7 @@ describe('QaStreamModal', () => {
   it('Close calls onClose and closes any open EventSource', () => {
     const onClose = vi.fn();
     render(<QaStreamModal stage="healthcheck" onClose={onClose} />);
+    clickRun();
     const es = latestInstance();
 
     // Both the modal box's built-in X button and our footer button are
@@ -114,10 +146,19 @@ describe('QaStreamModal', () => {
 
   it('closes the EventSource on unmount', () => {
     const { unmount } = render(<QaStreamModal stage="healthcheck" onClose={vi.fn()} />);
+    clickRun();
     const es = latestInstance();
 
     unmount();
 
     expect(es.close).toHaveBeenCalled();
+  });
+
+  it('unmounting before Run is clicked never opens an EventSource', () => {
+    const { unmount } = render(<QaStreamModal stage="healthcheck" onClose={vi.fn()} />);
+
+    unmount();
+
+    expect(MockEventSource.instances).toHaveLength(0);
   });
 });

@@ -11,6 +11,11 @@
   opacity: 0.75;
 }
 
+.qa-stream-modal__confirm {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .qa-stream-modal__console {
   background: #1e1e1e;
   color: #d4d4d4;

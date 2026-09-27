@@ -241,7 +241,7 @@ describe('ViewSwitcher dev mode buttons', () => {
     expect(screen.getByText('E2E')).toBeInTheDocument();
   });
 
-  it('opens QaStreamModal for the clicked stage', () => {
+  it('opens QaStreamModal for the clicked stage, without auto-running it', () => {
     mockUseSWR.mockReturnValue({
       data: { qa: ['healthcheck', 'e2e'] },
       error: null,
@@ -255,7 +255,14 @@ describe('ViewSwitcher dev mode buttons', () => {
 
     fireEvent.click(screen.getByText('Healthcheck'));
 
+    // Modal opens showing the endpoint and a confirmation, but the stream
+    // (and therefore the underlying automation run) must not start until
+    // the user explicitly clicks Run.
     expect(screen.getByText('GET /stream/qa/healthcheck')).toBeInTheDocument();
+    expect(MockEventSource.instances).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run' }));
+
     expect(MockEventSource.instances).toHaveLength(1);
     expect(MockEventSource.instances[0].url).toBe('/stream/qa/healthcheck');
   });
