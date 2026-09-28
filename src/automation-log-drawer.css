@@ -1,0 +1,126 @@
+/*
+ * automation-log-drawer.css
+ *
+ * Read-only list of recent dev-mode automation calls (setup/validation/
+ * solve), shown in AutomationLogDrawer. Output snippets reuse the dark,
+ * monospace terminal styling from qa-stream-modal.css; row chrome uses
+ * PatternFly's status colors (red/green/gold) so mode/status are
+ * scannable at a glance without reading the label text.
+ */
+
+.automation-log__placeholder {
+  color: #888;
+  font-style: italic;
+}
+
+.automation-log__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.automation-log__entry {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-left: 3px solid #999;
+  border-radius: 4px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.automation-log__entry--failed {
+  border-left-color: #c9190b;
+}
+
+.automation-log__entry--successful {
+  border-left-color: #3e8635;
+}
+
+.automation-log__entry--running {
+  border-left-color: #f0ab00;
+}
+
+.automation-log__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.automation-log__time {
+  color: #6a6e73;
+  font-size: 12px;
+  min-width: 52px;
+}
+
+.automation-log__module {
+  font-weight: 600;
+}
+
+.automation-log__stage {
+  color: #6a6e73;
+}
+
+.automation-log__badge {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.06);
+  color: #4f5255;
+}
+
+.automation-log__badge--failed {
+  background: #c9190b;
+  color: #fff;
+}
+
+.automation-log__badge--successful {
+  background: #3e8635;
+  color: #fff;
+}
+
+.automation-log__badge--running {
+  background: #f0ab00;
+  color: #1b1d21;
+}
+
+.automation-log__endpoint {
+  display: block;
+  margin-top: 4px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 0.8em;
+  opacity: 0.7;
+}
+
+.automation-log__output {
+  margin-top: 6px;
+}
+
+.automation-log__output summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #06c;
+}
+
+.automation-log__output pre {
+  margin: 6px 0 0;
+  padding: 8px;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  border-radius: 4px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import useSWR from 'swr/immutable';
-import ViewSwitcher from './view-switcher';
+import ViewSwitcher, { type AutomationLogEntry } from './view-switcher';
 import { MockEventSource } from './test-setup';
 
 // Mock useSWR (immutable) — same convention as app.test.tsx. Avoids relying on
@@ -29,6 +29,7 @@ function setup(props: Partial<React.ComponentProps<typeof ViewSwitcher>> = {}) {
       persistUrlState={props.persistUrlState}
       devMode={props.devMode}
       onAutomationModeChange={onAutomationModeChange}
+      automationLog={props.automationLog}
     />
   );
   return { ...result, onModeChange, onAutomationModeChange };
@@ -299,7 +300,7 @@ describe('ViewSwitcher dev mode buttons', () => {
     const active = toolbar.querySelector<HTMLButtonElement>('.sr-mode-btn.sr-active');
     active?.focus();
 
-    // Split (active) -> Tabs -> Normal -> Background -> Disabled -> Healthcheck -> E2E
+    // Split (active) -> Tabs -> Normal -> Background -> Disabled -> Log -> Healthcheck -> E2E
     fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
     fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
     expect(document.activeElement).toBe(screen.getByText('Normal').closest('button'));
@@ -309,6 +310,9 @@ describe('ViewSwitcher dev mode buttons', () => {
 
     fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
     expect(document.activeElement).toBe(screen.getByText('Disabled').closest('button'));
+
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByText('Log').closest('button'));
 
     fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
     expect(document.activeElement).toBe(screen.getByText('Healthcheck').closest('button'));
@@ -395,5 +399,106 @@ describe('ViewSwitcher automation-mode buttons', () => {
     expect(screen.getByText('Normal').closest('button')).toHaveAttribute('tabIndex', '0');
     expect(screen.getByText('Background').closest('button')).toHaveAttribute('tabIndex', '-1');
     expect(screen.getByText('Disabled').closest('button')).toHaveAttribute('tabIndex', '-1');
+  });
+});
+
+describe('ViewSwitcher automation log drawer', () => {
+  const sampleEntries: AutomationLogEntry[] = [
+    {
+      id: '1',
+      timestamp: Date.now() - 60_000,
+      module: 'module-one',
+      stage: 'setup',
+      mode: 'normal',
+      status: 'successful',
+      output: 'all good',
+      endpoint: 'POST /runner/api/module-one/setup',
+    },
+    {
+      id: '2',
+      timestamp: Date.now(),
+      module: 'module-two',
+      stage: 'validation',
+      mode: 'background',
+      status: 'failed',
+      output: 'boom',
+      endpoint: 'POST /runner/api/module-two/validation',
+    },
+  ];
+
+  beforeEach(() => {
+    vi.mocked(window.localStorage.getItem).mockReturnValue(null);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('does not render the Log button when devMode is false', () => {
+    setup({ devMode: false, automationLog: sampleEntries });
+    expandPanel();
+
+    expect(screen.queryByText('Log')).not.toBeInTheDocument();
+  });
+
+  it('renders a Log button in the Automation (dev) section when devMode is true', () => {
+    setup({ devMode: true });
+    expandPanel();
+
+    expect(screen.getByText('Log')).toBeInTheDocument();
+  });
+
+  it('opens the drawer showing an empty state when there are no entries', () => {
+    setup({ devMode: true });
+    expandPanel();
+
+    fireEvent.click(screen.getByText('Log'));
+
+    expect(screen.getByText('Automation Activity (dev)')).toBeInTheDocument();
+    expect(screen.getByText('No automation calls yet.')).toBeInTheDocument();
+  });
+
+  it('opens the drawer showing recorded entries with module/stage/mode/status', () => {
+    setup({ devMode: true, automationLog: sampleEntries });
+    expandPanel();
+
+    fireEvent.click(screen.getByText('Log'));
+
+    // Module/stage text is unique enough in this panel to query directly.
+    expect(screen.getByText('module-one')).toBeInTheDocument();
+    expect(screen.getByText('Setup')).toBeInTheDocument();
+    expect(screen.getByText('module-two')).toBeInTheDocument();
+    expect(screen.getByText('Validation')).toBeInTheDocument();
+
+    // Mode/status badges reuse label text ("Background") that also appears on
+    // the automation-mode selector buttons elsewhere in the panel, so scope
+    // these assertions to the badge elements specifically. Newest entry
+    // (module-two, background, failed) renders first.
+    const modeBadges = Array.from(document.querySelectorAll('.automation-log__badge--mode')).map(
+      (el) => el.textContent
+    );
+    expect(modeBadges).toEqual(['Background', 'Normal']);
+
+    const statusBadges = Array.from(document.querySelectorAll('.automation-log__badge--status')).map(
+      (el) => el.textContent
+    );
+    expect(statusBadges).toEqual(['Failed', 'Success']);
+  });
+
+  it('closes the drawer when Close is clicked', () => {
+    setup({ devMode: true, automationLog: sampleEntries });
+    expandPanel();
+    fireEvent.click(screen.getByText('Log'));
+
+    expect(screen.getByText('Automation Activity (dev)')).toBeInTheDocument();
+
+    // The ModalHeader's default "X" dismiss button is also labeled "Close" —
+    // find the footer button specifically (the one with visible text).
+    const closeButtons = screen.getAllByRole('button', { name: 'Close' });
+    const footerClose = closeButtons.find((btn) => btn.textContent === 'Close');
+    if (!footerClose) throw new Error('Footer Close button not found');
+    fireEvent.click(footerClose);
+
+    expect(screen.queryByText('Automation Activity (dev)')).not.toBeInTheDocument();
   });
 });

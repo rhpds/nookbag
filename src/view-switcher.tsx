@@ -18,6 +18,10 @@
  * localStorage keys:
  *   sr-panel-mode      — last selected view mode (instructions | split | tabs)
  *   sr-automation-mode — last selected dev-mode automation mode (normal | background | disabled)
+ *
+ * The dev-only "Automation (dev)" section also includes a "Log" button that
+ * opens a read-only AutomationLogDrawer of recent automation calls — see
+ * AutomationLogEntry / the automationLog prop.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import useSWRImmutable from 'swr/immutable';
@@ -28,6 +32,7 @@ import { ViewMode } from './config-schema';
 export type { ViewMode } from './config-schema';
 import { API_CONFIG, configFetcher, formatStageLabel } from './utils';
 import QaStreamModal from './qa-stream-modal';
+import AutomationLogDrawer from './automation-log-drawer';
 
 /**
  * Dev-mode-only automation mode. Controls how the Next/Prev/Solve actions in
@@ -37,6 +42,24 @@ import QaStreamModal from './qa-stream-modal';
  *   disabled   — calls are never made at all; navigation always proceeds
  */
 export type AutomationMode = 'normal' | 'background' | 'disabled';
+
+/**
+ * A single recorded setup/validation/solve automation call, shown in the
+ * dev-only Automation Activity Log (opened via the "Log" button below).
+ * Recorded for both 'normal' and 'background' automation modes (never
+ * 'disabled' — no call is made in that mode) so devs can see call results
+ * without opening the browser Console/Network tab.
+ */
+export type AutomationLogEntry = {
+  id: string;
+  timestamp: number;
+  module: string;
+  stage: 'setup' | 'validation' | 'solve';
+  mode: AutomationMode;
+  status: 'running' | 'successful' | 'failed';
+  output?: string;
+  endpoint: string;
+};
 
 type ViewSwitcherProps = {
   defaultMode?: ViewMode;
@@ -63,6 +86,15 @@ type ViewSwitcherProps = {
    * stale localStorage value could otherwise leak into a non-dev deployment.
    */
   onAutomationModeChange?: (mode: AutomationMode) => void;
+  /**
+   * Dev-mode-only list of recorded setup/validation/solve automation calls
+   * (see AutomationLogEntry). When devMode is true, a "Log" button in the
+   * Automation (dev) section opens a read-only AutomationLogDrawer listing
+   * these entries, so devs don't need the browser Console/Network tab to
+   * see Background-mode (or previously-invisible Normal-mode setup) call
+   * results.
+   */
+  automationLog?: AutomationLogEntry[];
 };
 
 /** Shape of the subset of /runner/api/config we care about here. */
@@ -189,6 +221,7 @@ export default function ViewSwitcher({
   persistUrlState,
   devMode,
   onAutomationModeChange,
+  automationLog,
 }: ViewSwitcherProps) {
   const [mode, setMode] = useState<ViewMode>(() => getInitialMode(defaultMode));
   const [automationMode, setAutomationMode] = useState<AutomationMode>(getInitialAutomationMode);
@@ -196,6 +229,8 @@ export default function ViewSwitcher({
   const [yPercent, setYPercent] = useState(getSavedYPercent);
   const [viewportH, setViewportH] = useState(() => window.innerHeight);
   const [activeStage, setActiveStage] = useState<string | null>(null);
+  const [logOpen, setLogOpen] = useState(false);
+  const automationLogEntries = automationLog ?? [];
 
   // Dev-mode only: discover qa-automation stages once, fail quiet if unavailable.
   const { data: runnerConfig } = useSWRImmutable<RunnerConfig | null>(
@@ -471,6 +506,15 @@ export default function ViewSwitcher({
                 <span className="sr-auto-btn__label">{btn.label}</span>
               </button>
             ))}
+            <button
+              className="sr-dev-btn"
+              title="View recent automation call results (dev mode)"
+              aria-label="Automation log"
+              tabIndex={-1}
+              onClick={() => setLogOpen(true)}
+            >
+              <span className="sr-dev-btn__label">Log</span>
+            </button>
           </>
         )}
         {qaStages.length > 0 && (
@@ -496,6 +540,7 @@ export default function ViewSwitcher({
       </div>
     </div>
     {activeStage && <QaStreamModal stage={activeStage} onClose={() => setActiveStage(null)} />}
+    {logOpen && <AutomationLogDrawer entries={automationLogEntries} onClose={() => setLogOpen(false)} />}
     </>
   );
 }

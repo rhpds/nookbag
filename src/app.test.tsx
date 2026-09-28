@@ -946,6 +946,156 @@ describe('UI Config Integration Tests', () => {
         // happens synchronously when entering the blocking "normal" branch).
         expect(mockExecuteStageAndGetStatus).toHaveBeenCalledWith('module-one', 'validation');
       });
+
+      describe('Automation activity log (dev)', () => {
+        beforeEach(() => {
+          // The preceding "safety net" test leaves window.localStorage.getItem
+          // mocked to return 'disabled' for sr-automation-mode. vi.clearAllMocks()
+          // (in the outer beforeEach) clears calls but not that implementation, so
+          // reset it explicitly here to get the real default ('normal').
+          vi.mocked(window.localStorage.getItem).mockReturnValue(null);
+        });
+
+        /** Opens the ViewSwitcher popout and clicks the "Log" button. */
+        function openAutomationLog() {
+          const trigger = screen.getByRole('button', { name: 'View mode switcher' });
+          fireEvent.pointerDown(trigger, { pointerId: 1 });
+          fireEvent.pointerUp(trigger, { pointerId: 1 });
+          fireEvent.click(screen.getByText('Log'));
+        }
+
+        /**
+         * Simulates the main instructions iframe finishing its load — the
+         * point at which onPageChange (and therefore the "setup" automation
+         * call for the newly-loaded module) actually runs. jsdom does not
+         * auto-fire this on mount, so it's driven manually with a stubbed
+         * contentWindow.location matching the given module's rendered path
+         * (mirrors the ./antora/modules/1.0/<module>.html shape produced by
+         * devModeAutomationConfig, which has no antora.dir override).
+         */
+        function triggerIframeLoad(moduleName: string) {
+          const mainIframe = document.querySelector('iframe.app__instructions') as HTMLIFrameElement;
+          Object.defineProperty(mainIframe, 'contentWindow', {
+            configurable: true,
+            value: {
+              location: { pathname: `/antora/modules/1.0/${moduleName}.html` },
+              document: { title: '' },
+            },
+          });
+          fireEvent.load(mainIframe);
+        }
+
+        it('Normal mode: a "setup" failure is recorded to the log (previously invisible entirely, even in Normal mode)', async () => {
+          mockConfig(devModeAutomationConfig);
+          mockExecuteStageAndGetStatus.mockResolvedValue({ Status: 'failed', Output: 'setup boom' });
+
+          render(
+            <TestWrapper>
+              <App />
+            </TestWrapper>
+          );
+
+          await waitFor(() => expect(screen.getByText('Next')).toBeInTheDocument());
+
+          // Automation mode defaults to Normal; module-one has a "setup" script.
+          triggerIframeLoad('module-one');
+
+          await waitFor(() => {
+            expect(mockExecuteStageAndGetStatus).toHaveBeenCalledWith('module-one', 'setup');
+          });
+
+          // No blocking error modal for "setup" (unchanged existing behavior) —
+          // the point of this feature is the dev-only log, not a new blocking UI.
+          expect(screen.queryByText('Validation Error')).not.toBeInTheDocument();
+
+          openAutomationLog();
+          expect(screen.getByText('Automation Activity (dev)')).toBeInTheDocument();
+
+          await waitFor(
+            () => {
+              expect(screen.getByText('module-one')).toBeInTheDocument();
+              expect(screen.getByText('Setup')).toBeInTheDocument();
+              const statusBadge = document.querySelector('.automation-log__badge--status');
+              expect(statusBadge?.textContent).toBe('Failed');
+            },
+            { timeout: 3000 }
+          );
+        });
+
+        it('Background mode: a "validation" call (success or failure) is recorded to the log', async () => {
+          mockConfig(devModeAutomationConfig);
+          mockExecuteStageAndGetStatus.mockResolvedValue({ Status: 'failed', Output: 'boom' });
+          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+          render(
+            <TestWrapper>
+              <App />
+            </TestWrapper>
+          );
+
+          await waitFor(() => expect(screen.getByText('Next')).toBeInTheDocument());
+
+          selectAutomationMode('Background');
+          fireEvent.click(screen.getByText('Next'));
+
+          await waitFor(() => {
+            expect(mockExecuteStageAndGetStatus).toHaveBeenCalledWith('module-one', 'validation');
+          });
+
+          openAutomationLog();
+
+          await waitFor(() => {
+            expect(screen.getByText('module-one')).toBeInTheDocument();
+            expect(screen.getByText('Validation')).toBeInTheDocument();
+            const modeBadge = document.querySelector('.automation-log__badge--mode');
+            expect(modeBadge?.textContent).toBe('Background');
+            const statusBadge = document.querySelector('.automation-log__badge--status');
+            expect(statusBadge?.textContent).toBe('Failed');
+          });
+
+          warnSpy.mockRestore();
+        });
+
+        it('Background mode: a "solve" call is recorded to the log', async () => {
+          // module-one has no "solve" script in the base fixture — add one so
+          // the Solve button (and its automation call) is available here.
+          mockConfig(devModeAutomationConfig.replace("scripts: ['setup', 'validation']", "scripts: ['setup', 'validation', 'solve']"));
+          mockExecuteStageAndGetStatus.mockResolvedValue({ Status: 'successful' });
+          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+          render(
+            <TestWrapper>
+              <App />
+            </TestWrapper>
+          );
+
+          await waitFor(() => expect(screen.getByText('Solve')).toBeInTheDocument());
+
+          selectAutomationMode('Background');
+          fireEvent.click(screen.getByText('Solve'));
+
+          await waitFor(() => {
+            expect(mockExecuteStageAndGetStatus).toHaveBeenCalledWith('module-one', 'solve');
+          });
+
+          openAutomationLog();
+
+          // Note: the underlying "Solve" button is still rendered behind the
+          // modal, so we scope the stage-label check to the log entry itself
+          // rather than screen.getByText('Solve') (which would match both).
+          await waitFor(() => {
+            expect(screen.getByText('module-one')).toBeInTheDocument();
+            const stageLabel = document.querySelector('.automation-log__stage');
+            expect(stageLabel?.textContent).toBe('Solve');
+            const modeBadge = document.querySelector('.automation-log__badge--mode');
+            expect(modeBadge?.textContent).toBe('Background');
+            const statusBadge = document.querySelector('.automation-log__badge--status');
+            expect(statusBadge?.textContent).toBe('Success');
+          });
+
+          warnSpy.mockRestore();
+        });
+      });
     });
   });
 });
