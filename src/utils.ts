@@ -2,7 +2,23 @@ import fetch from 'unfetch';
 import { Step } from './types';
 
 const API_PATH = '/runner/api';
-export async function getJobStatus(jobId: string): Promise<{ Status: 'successful' | 'failed'; Output?: string }> {
+
+/**
+ * Shape of the runner API's job-status response. `Debug` carries the raw
+ * output files captured for the job (keyed by filename, e.g.
+ * "ansible_runner.stdout" — the full Ansible Runner stdout for the whole
+ * play, present on success as well as failure). `Output` is a narrower
+ * convenience field the backend only populates from `validation_failure.out`
+ * (i.e. only on validation failures) — kept for backwards compatibility with
+ * existing error surfacing (validationMsg, console.warn).
+ */
+export type JobResult = {
+  Status: 'successful' | 'failed';
+  Output?: string;
+  Debug?: { [filename: string]: string };
+};
+
+export async function getJobStatus(jobId: string): Promise<JobResult> {
   async function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
@@ -38,7 +54,7 @@ export async function executeStage(moduleName: string, stage: Step): Promise<str
 export async function executeStageAndGetStatus(
   moduleName: string,
   stage: Step
-): Promise<{ Status: 'failed' | 'successful'; Output?: string }> {
+): Promise<JobResult> {
   const jobId = await executeStage(moduleName, stage);
   if (jobId) {
     return await getJobStatus(jobId);
@@ -118,6 +134,24 @@ export function formatYamlError(error: unknown, sourceText: string, sourceName: 
     frame.join('\n'),
   ].join('\n');
   return pretty;
+}
+
+/**
+ * Turn a qa-automation stage name (e.g. "healthcheck", "e2e") into a
+ * display label. Short alphanumeric segments containing a digit (like "e2e")
+ * are upper-cased as likely abbreviations; other segments are capitalized.
+ */
+export function formatStageLabel(stage: string): string {
+  return stage
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((word) => {
+      if (word.length <= 4 && /[0-9]/.test(word)) {
+        return word.toUpperCase();
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
 }
 
 export function getParentOrigin(): string {

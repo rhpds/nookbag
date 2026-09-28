@@ -4,7 +4,17 @@ import yaml from 'js-yaml';
 const mockFetch = vi.fn();
 vi.mock('unfetch', () => ({ default: (...args: unknown[]) => mockFetch(...args) }));
 
-import { formatYamlError, getJobStatus, executeStage, executeStageAndGetStatus, silentFetcher, exitLab, restartLab, completeLab } from './utils';
+import {
+  formatYamlError,
+  getJobStatus,
+  executeStage,
+  executeStageAndGetStatus,
+  silentFetcher,
+  exitLab,
+  restartLab,
+  completeLab,
+  formatStageLabel,
+} from './utils';
 
 describe('formatYamlError', () => {
   it('formats js-yaml duplicated key error with code frame and caret', () => {
@@ -268,5 +278,24 @@ describe('postMessage lifecycle', () => {
   it('completeLab sends COMPLETED to parent origin', () => {
     completeLab();
     expect(postMessageSpy).toHaveBeenCalledWith('COMPLETED', 'http://localhost');
+  });
+});
+
+describe('formatStageLabel', () => {
+  it('capitalizes a plain word', () => {
+    expect(formatStageLabel('healthcheck')).toBe('Healthcheck');
+  });
+
+  it('upper-cases short alphanumeric abbreviations like e2e', () => {
+    expect(formatStageLabel('e2e')).toBe('E2E');
+  });
+
+  it('capitalizes each hyphen/underscore-separated word', () => {
+    expect(formatStageLabel('smoke-test')).toBe('Smoke Test');
+    expect(formatStageLabel('smoke_test')).toBe('Smoke Test');
+  });
+
+  it('mixes capitalization and abbreviation rules across words', () => {
+    expect(formatStageLabel('e2e-suite')).toBe('E2E Suite');
   });
 });

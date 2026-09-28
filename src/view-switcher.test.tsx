@@ -1,15 +1,44 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import ViewSwitcher from './view-switcher';
+import useSWR from 'swr/immutable';
+import ViewSwitcher, { type AutomationLogEntry } from './view-switcher';
+import { MockEventSource } from './test-setup';
+
+// Mock useSWR (immutable) — same convention as app.test.tsx. Avoids relying on
+// the real SWR cache (which would leak state between test cases sharing the
+// same /runner/api/config key).
+vi.mock('swr/immutable', () => ({
+  default: vi.fn(() => ({
+    data: null,
+    error: null,
+    mutate: vi.fn(),
+    isValidating: false,
+    isLoading: false,
+  })),
+}));
 
 function setup(props: Partial<React.ComponentProps<typeof ViewSwitcher>> = {}) {
   const onModeChange = props.onModeChange ?? vi.fn();
+  const onAutomationModeChange = props.onAutomationModeChange ?? vi.fn();
   const result = render(
-    <ViewSwitcher defaultMode={props.defaultMode ?? 'split'} onModeChange={onModeChange} persistUrlState={props.persistUrlState} />
+    <ViewSwitcher
+      defaultMode={props.defaultMode ?? 'split'}
+      onModeChange={onModeChange}
+      persistUrlState={props.persistUrlState}
+      devMode={props.devMode}
+      onAutomationModeChange={onAutomationModeChange}
+      automationLog={props.automationLog}
+    />
   );
-  return { ...result, onModeChange };
+  return { ...result, onModeChange, onAutomationModeChange };
+}
+
+function expandPanel() {
+  const trigger = screen.getByRole('button', { name: 'View mode switcher' });
+  fireEvent.pointerDown(trigger, { pointerId: 1 });
+  fireEvent.pointerUp(trigger, { pointerId: 1 });
 }
 
 describe('ViewSwitcher', () => {
@@ -151,5 +180,435 @@ describe('ViewSwitcher', () => {
 
     expect(screen.getByTitle('Side by side')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTitle('Full-width instructions')).toHaveAttribute('aria-pressed', 'false');
+  });
+});
+
+describe('ViewSwitcher dev mode buttons', () => {
+  const mockUseSWR = vi.mocked(useSWR);
+
+  beforeEach(() => {
+    vi.mocked(window.localStorage.getItem).mockReturnValue(null);
+    mockUseSWR.mockReturnValue({
+      data: null,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+    MockEventSource.instances = [];
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('does not render qa buttons when devMode is false, even if stages are available', () => {
+    mockUseSWR.mockReturnValue({
+      data: { qa: ['healthcheck', 'e2e'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    setup({ devMode: false });
+    expandPanel();
+
+    expect(screen.queryByText('Healthcheck')).not.toBeInTheDocument();
+    expect(screen.queryByText('E2E')).not.toBeInTheDocument();
+  });
+
+  it('does not render qa buttons when devMode is true but no stages are returned', () => {
+    setup({ devMode: true });
+    expandPanel();
+
+    expect(screen.queryByText('Healthcheck')).not.toBeInTheDocument();
+    expect(screen.queryByText('E2E')).not.toBeInTheDocument();
+  });
+
+  it('renders one button per discovered qa stage when devMode is true', () => {
+    mockUseSWR.mockReturnValue({
+      data: { qa: ['healthcheck', 'e2e'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    setup({ devMode: true });
+    expandPanel();
+
+    expect(screen.getByText('Healthcheck')).toBeInTheDocument();
+    expect(screen.getByText('E2E')).toBeInTheDocument();
+  });
+
+  it('opens QaStreamModal for the clicked stage, without auto-running it', () => {
+    mockUseSWR.mockReturnValue({
+      data: { qa: ['healthcheck', 'e2e'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    setup({ devMode: true });
+    expandPanel();
+
+    fireEvent.click(screen.getByText('Healthcheck'));
+
+    // Modal opens showing the endpoint and a confirmation, but the stream
+    // (and therefore the underlying automation run) must not start until
+    // the user explicitly clicks Run.
+    expect(screen.getByText('GET /stream/qa/healthcheck')).toBeInTheDocument();
+    expect(MockEventSource.instances).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run' }));
+
+    expect(MockEventSource.instances).toHaveLength(1);
+    expect(MockEventSource.instances[0].url).toBe('/stream/qa/healthcheck');
+  });
+
+  it('qa buttons are not independent Tab stops (tabIndex -1), consistent with mode buttons', () => {
+    mockUseSWR.mockReturnValue({
+      data: { qa: ['healthcheck', 'e2e'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    setup({ devMode: true });
+    expandPanel();
+
+    expect(screen.getByText('Healthcheck').closest('button')).toHaveAttribute('tabIndex', '-1');
+    expect(screen.getByText('E2E').closest('button')).toHaveAttribute('tabIndex', '-1');
+  });
+
+  it('ArrowRight/ArrowLeft roving navigation reaches qa buttons from the mode buttons', () => {
+    mockUseSWR.mockReturnValue({
+      data: { qa: ['healthcheck', 'e2e'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    setup({ devMode: true });
+    expandPanel();
+
+    const toolbar = screen.getByRole('toolbar', { name: 'View mode switcher' });
+    const active = toolbar.querySelector<HTMLButtonElement>('.sr-mode-btn.sr-active');
+    active?.focus();
+
+    // Split (active) -> Tabs -> Normal -> Background -> Disabled -> Log -> Healthcheck -> E2E
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByText('Normal').closest('button'));
+
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByText('Background').closest('button'));
+
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByText('Disabled').closest('button'));
+
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByText('Log').closest('button'));
+
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByText('Healthcheck').closest('button'));
+
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByText('E2E').closest('button'));
+
+    // Wraps back around to the first mode button (Instructions)
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toHaveAttribute('title', expect.stringContaining('Full-width instructions'));
+  });
+});
+
+describe('ViewSwitcher automation-mode buttons', () => {
+  beforeEach(() => {
+    vi.mocked(window.localStorage.getItem).mockReturnValue(null);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('does not render automation-mode buttons when devMode is false', () => {
+    setup({ devMode: false });
+    expandPanel();
+
+    expect(screen.queryByText('Normal')).not.toBeInTheDocument();
+    expect(screen.queryByText('Background')).not.toBeInTheDocument();
+    expect(screen.queryByText('Disabled')).not.toBeInTheDocument();
+  });
+
+  it('renders Normal/Background/Disabled buttons when devMode is true, defaulting to Normal', () => {
+    setup({ devMode: true });
+    expandPanel();
+
+    expect(screen.getByText('Normal')).toBeInTheDocument();
+    expect(screen.getByText('Background')).toBeInTheDocument();
+    expect(screen.getByText('Disabled')).toBeInTheDocument();
+    expect(screen.getByText('Normal').closest('button')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Background').closest('button')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('calls onAutomationModeChange with the restored/default mode on mount', () => {
+    const onAutomationModeChange = vi.fn();
+    render(<ViewSwitcher defaultMode="split" onModeChange={vi.fn()} devMode onAutomationModeChange={onAutomationModeChange} />);
+    expect(onAutomationModeChange).toHaveBeenCalledWith('normal');
+  });
+
+  it('clicking Background calls onAutomationModeChange and persists to localStorage', () => {
+    const { onAutomationModeChange } = setup({ devMode: true });
+    expandPanel();
+
+    fireEvent.click(screen.getByText('Background'));
+
+    expect(onAutomationModeChange).toHaveBeenCalledWith('background');
+    expect(window.localStorage.setItem).toHaveBeenCalledWith('sr-automation-mode', 'background');
+  });
+
+  it('clicking Disabled updates the active button state', () => {
+    setup({ devMode: true });
+    expandPanel();
+
+    fireEvent.click(screen.getByText('Disabled'));
+
+    expect(screen.getByText('Disabled').closest('button')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Normal').closest('button')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('restores automation mode from localStorage on mount', () => {
+    vi.mocked(window.localStorage.getItem).mockImplementation((key) => {
+      if (key === 'sr-automation-mode') return 'disabled';
+      return null;
+    });
+
+    const onAutomationModeChange = vi.fn();
+    render(<ViewSwitcher defaultMode="split" onModeChange={vi.fn()} devMode onAutomationModeChange={onAutomationModeChange} />);
+    expect(onAutomationModeChange).toHaveBeenCalledWith('disabled');
+  });
+
+  it('automation buttons use roving tabIndex (active button is a tab stop, others are not)', () => {
+    setup({ devMode: true });
+    expandPanel();
+
+    expect(screen.getByText('Normal').closest('button')).toHaveAttribute('tabIndex', '0');
+    expect(screen.getByText('Background').closest('button')).toHaveAttribute('tabIndex', '-1');
+    expect(screen.getByText('Disabled').closest('button')).toHaveAttribute('tabIndex', '-1');
+  });
+});
+
+describe('ViewSwitcher automation log drawer', () => {
+  const sampleEntries: AutomationLogEntry[] = [
+    {
+      id: '1',
+      timestamp: Date.now() - 60_000,
+      module: 'module-one',
+      stage: 'setup',
+      mode: 'normal',
+      status: 'successful',
+      output: 'all good',
+      endpoint: 'POST /runner/api/module-one/setup',
+    },
+    {
+      id: '2',
+      timestamp: Date.now(),
+      module: 'module-two',
+      stage: 'validation',
+      mode: 'background',
+      status: 'failed',
+      output: 'boom',
+      endpoint: 'POST /runner/api/module-two/validation',
+    },
+  ];
+
+  beforeEach(() => {
+    vi.mocked(window.localStorage.getItem).mockReturnValue(null);
+    // @testing-library/user-event's userEvent.setup() (used by earlier tests
+    // in this file, e.g. "calls onModeChange when a mode is selected")
+    // eagerly replaces navigator.clipboard with its own stub via a getter
+    // (see attachClipboardStubToView in its Clipboard.js) and only detaches
+    // it in a global afterAll — so it silently outlives those tests and
+    // shadows the plain vi.fn() mock from test-setup.ts for the rest of the
+    // file. Re-assert our own mock here so these clipboard-dependent tests
+    // are deterministic regardless of what ran earlier in the file.
+    Object.defineProperty(window.navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('does not render the Log button when devMode is false', () => {
+    setup({ devMode: false, automationLog: sampleEntries });
+    expandPanel();
+
+    expect(screen.queryByText('Log')).not.toBeInTheDocument();
+  });
+
+  it('renders a Log button in the Automation (dev) section when devMode is true', () => {
+    setup({ devMode: true });
+    expandPanel();
+
+    expect(screen.getByText('Log')).toBeInTheDocument();
+  });
+
+  it('opens the drawer showing an empty state when there are no entries', () => {
+    setup({ devMode: true });
+    expandPanel();
+
+    fireEvent.click(screen.getByText('Log'));
+
+    expect(screen.getByText('Automation Activity (dev)')).toBeInTheDocument();
+    expect(screen.getByText('No automation calls yet.')).toBeInTheDocument();
+  });
+
+  it('opens the drawer showing recorded entries with module/stage/mode/status', () => {
+    setup({ devMode: true, automationLog: sampleEntries });
+    expandPanel();
+
+    fireEvent.click(screen.getByText('Log'));
+
+    // Module/stage text is unique enough in this panel to query directly.
+    expect(screen.getByText('module-one')).toBeInTheDocument();
+    expect(screen.getByText('Setup')).toBeInTheDocument();
+    expect(screen.getByText('module-two')).toBeInTheDocument();
+    expect(screen.getByText('Validation')).toBeInTheDocument();
+
+    // Mode/status badges reuse label text ("Background") that also appears on
+    // the automation-mode selector buttons elsewhere in the panel, so scope
+    // these assertions to the badge elements specifically. Newest entry
+    // (module-two, background, failed) renders first.
+    const modeBadges = Array.from(document.querySelectorAll('.automation-log__badge--mode')).map(
+      (el) => el.textContent
+    );
+    expect(modeBadges).toEqual(['Background', 'Normal']);
+
+    const statusBadges = Array.from(document.querySelectorAll('.automation-log__badge--status')).map(
+      (el) => el.textContent
+    );
+    expect(statusBadges).toEqual(['Failed', 'Success']);
+  });
+
+  it('renders the full Ansible job log for an entry when jobLog is set, even on success', () => {
+    const entriesWithLog: AutomationLogEntry[] = [
+      {
+        id: '3',
+        timestamp: Date.now(),
+        module: 'module-one',
+        stage: 'setup',
+        mode: 'normal',
+        status: 'successful',
+        // No "output" here — jobLog must render independently of it.
+        jobLog: 'PLAY [Demo] ***\nTASK [debug] ***\nok: [host1]\nPLAY RECAP ***',
+        endpoint: 'POST /runner/api/module-one/setup',
+      },
+    ];
+    setup({ devMode: true, automationLog: entriesWithLog });
+    expandPanel();
+
+    fireEvent.click(screen.getByText('Log'));
+
+    expect(screen.getByText('Ansible job log')).toBeInTheDocument();
+    // Queried via querySelector (not screen.getByText) since <pre> preserves
+    // embedded newlines, which getByText's whitespace-normalizing matcher
+    // would otherwise fail to match against.
+    const logPre = document.querySelector('.automation-log__output pre');
+    expect(logPre?.textContent).toBe(entriesWithLog[0].jobLog);
+  });
+
+  it('Copy button copies the Output text to the clipboard', async () => {
+    const entriesWithOutput: AutomationLogEntry[] = [
+      {
+        id: '4',
+        timestamp: Date.now(),
+        module: 'module-one',
+        stage: 'validation',
+        mode: 'normal',
+        status: 'failed',
+        output: 'validation failed: file missing',
+        endpoint: 'POST /runner/api/module-one/validation',
+      },
+    ];
+    setup({ devMode: true, automationLog: entriesWithOutput });
+    expandPanel();
+    fireEvent.click(screen.getByText('Log'));
+
+    const writeTextSpy = vi.mocked(navigator.clipboard.writeText);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy output to clipboard' }));
+
+    // Wrapped in waitFor (rather than a bare synchronous assertion) since
+    // handleCopy's setCopied(true) happens in a microtask after
+    // copyToClipboard resolves — waitFor's act()-aware polling avoids the
+    // "update not wrapped in act(...)" warning that a synchronous assertion
+    // would otherwise trigger here.
+    await waitFor(() => {
+      expect(writeTextSpy).toHaveBeenCalledWith('validation failed: file missing');
+    });
+  });
+
+  it('Copy button copies the full Ansible job log to the clipboard, and shows a "copied" confirmation', async () => {
+    const jobLog = 'PLAY [Demo] ***\nTASK [debug] ***\nok: [host1]\nPLAY RECAP ***';
+    const entriesWithLog: AutomationLogEntry[] = [
+      {
+        id: '3',
+        timestamp: Date.now(),
+        module: 'module-one',
+        stage: 'setup',
+        mode: 'normal',
+        status: 'successful',
+        jobLog,
+        endpoint: 'POST /runner/api/module-one/setup',
+      },
+    ];
+    setup({ devMode: true, automationLog: entriesWithLog });
+    expandPanel();
+    fireEvent.click(screen.getByText('Log'));
+
+    const writeTextSpy = vi.mocked(navigator.clipboard.writeText);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Ansible job log to clipboard' }));
+
+    expect(writeTextSpy).toHaveBeenCalledWith(jobLog);
+
+    // Icon/aria-label swap to a transient "copied" confirmation state.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Copied Ansible job log' })).toBeInTheDocument();
+    });
+  });
+
+  it('does not render an "Ansible job log" section when jobLog is absent', () => {
+    setup({ devMode: true, automationLog: sampleEntries });
+    expandPanel();
+
+    fireEvent.click(screen.getByText('Log'));
+
+    expect(screen.queryByText('Ansible job log')).not.toBeInTheDocument();
+  });
+
+  it('closes the drawer when Close is clicked', () => {
+    setup({ devMode: true, automationLog: sampleEntries });
+    expandPanel();
+    fireEvent.click(screen.getByText('Log'));
+
+    expect(screen.getByText('Automation Activity (dev)')).toBeInTheDocument();
+
+    // The ModalHeader's default "X" dismiss button is also labeled "Close" —
+    // find the footer button specifically (the one with visible text).
+    const closeButtons = screen.getAllByRole('button', { name: 'Close' });
+    const footerClose = closeButtons.find((btn) => btn.textContent === 'Close');
+    if (!footerClose) throw new Error('Footer Close button not found');
+    fireEvent.click(footerClose);
+
+    expect(screen.queryByText('Automation Activity (dev)')).not.toBeInTheDocument();
   });
 });

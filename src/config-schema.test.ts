@@ -67,6 +67,27 @@ describe('ConfigSchema', () => {
     const result = v.safeParse(ConfigSchema, { view_switcher: { default_mode: 'invalid' } });
     expect(result.success).toBe(false);
   });
+
+  it('defaults dev_mode to false when omitted', () => {
+    const result = v.safeParse(ConfigSchema, {});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.output.dev_mode).toBe(false);
+    }
+  });
+
+  it('accepts dev_mode: true', () => {
+    const result = v.safeParse(ConfigSchema, { dev_mode: true });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.output.dev_mode).toBe(true);
+    }
+  });
+
+  it('rejects a non-boolean dev_mode', () => {
+    const result = v.safeParse(ConfigSchema, { dev_mode: 'yes' });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('TabSchema', () => {

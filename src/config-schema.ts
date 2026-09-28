@@ -47,6 +47,7 @@ export const ConfigSchema = v.looseObject({
   persist_url_state: v.optional(v.boolean()),
   persistUrlState: v.optional(v.boolean()),
   view_switcher: v.optional(ViewSwitcherSchema),
+  dev_mode: v.optional(v.boolean(), false),
 });
 
 export type TConfig = v.InferOutput<typeof ConfigSchema>;

@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import App from './app';
 import useSWR from 'swr/immutable';
 import { ErrorBoundary } from 'react-error-boundary';
+import { executeStageAndGetStatus } from './utils';
 // Import test configurations
 import terminalConfig from './test-configs/terminal-config.yml?raw';
 import externalLinksConfig from './test-configs/external-links-config.yml?raw';
@@ -14,6 +15,7 @@ import openConfig from './test-configs/open-config.yml?raw';
 import guidedConfig from './test-configs/guided-config.yml?raw';
 import placeholderConfig from './test-configs/placeholder-config.yml?raw';
 import pathOnlyConfig from './test-configs/path-only-config.yml?raw';
+import devModeAutomationConfig from './test-configs/dev-mode-automation-config.yml?raw';
 
 // Mock useSWR (immutable)
 vi.mock('swr/immutable', () => ({
@@ -25,6 +27,18 @@ vi.mock('swr/immutable', () => ({
     isLoading: false,
   })),
 }));
+
+// Partial-mock ./utils: keep everything real (configFetcher, exitLab, etc.)
+// except executeStageAndGetStatus, which we control directly in the
+// "Dev-mode automation toggles" tests below. This avoids depending on
+// unfetch's real XHR transport (which global.fetch mocking cannot intercept).
+vi.mock('./utils', async () => {
+  const actual = await vi.importActual<typeof import('./utils')>('./utils');
+  return {
+    ...actual,
+    executeStageAndGetStatus: vi.fn(),
+  };
+});
 
 // Test component wrapper for error boundary
 function TestWrapper({ children }: { children: React.ReactNode }) {
@@ -804,6 +818,329 @@ describe('UI Config Integration Tests', () => {
         expect(screen.getByText('Skip module')).toBeInTheDocument();
         expect(screen.getByText('Exit')).toBeInTheDocument();
         expect(screen.getByText('Solve')).toBeInTheDocument();
+      });
+    });
+
+    describe('Dev-mode automation toggles', () => {
+      const mockExecuteStageAndGetStatus = vi.mocked(executeStageAndGetStatus);
+
+      beforeEach(() => {
+        mockExecuteStageAndGetStatus.mockReset();
+        // The shared outer window.location mock omits `origin`, which makes
+        // getParentOrigin() return undefined and window.parent.postMessage(...)
+        // throw synchronously in jsdom ("Invalid target origin 'undefined'").
+        // handleNext/handlePrevious send a postMessage before anything else,
+        // so tests here (which click Next for real) need `origin` present.
+        Object.defineProperty(window, 'location', {
+          value: { protocol: 'http:', hostname: 'localhost', search: '', origin: 'http://localhost' },
+          writable: true,
+        });
+      });
+
+      function mockConfig(yamlText: string) {
+        mockUseSWR.mockImplementation((key) => {
+          if (Array.isArray(key) && key.includes('./ui-config.yml')) {
+            return {
+              data: [
+                { url: './ui-config.yml', ok: true, status: 200, statusText: 'OK', text: yamlText },
+                { url: './zero-touch-config.yml', ok: false, status: 404, statusText: 'Not Found', text: null },
+              ],
+              error: null,
+              mutate: vi.fn(),
+              isValidating: false,
+              isLoading: false,
+            };
+          }
+          // Module-script/qa-stage config (API_CONFIG): null so the inline
+          // antora.modules[].scripts from the YAML fixture are used as-is.
+          return {
+            data: null,
+            error: null,
+            mutate: vi.fn(),
+            isValidating: false,
+            isLoading: false,
+          };
+        });
+      }
+
+      /** Opens the ViewSwitcher popout and clicks the given automation-mode button. */
+      function selectAutomationMode(label: 'Normal' | 'Background' | 'Disabled') {
+        const trigger = screen.getByRole('button', { name: 'View mode switcher' });
+        fireEvent.pointerDown(trigger, { pointerId: 1 });
+        fireEvent.pointerUp(trigger, { pointerId: 1 });
+        fireEvent.click(screen.getByText(label));
+      }
+
+      it('Disabled mode: Next skips the validation call entirely and advances immediately', async () => {
+        mockConfig(devModeAutomationConfig);
+
+        render(
+          <TestWrapper>
+            <App />
+          </TestWrapper>
+        );
+
+        await waitFor(() => expect(screen.getByText('Next')).toBeInTheDocument());
+
+        selectAutomationMode('Disabled');
+        fireEvent.click(screen.getByText('Next'));
+
+        expect(mockExecuteStageAndGetStatus).not.toHaveBeenCalled();
+        // No blocking loading overlay for the skipped validation call
+        expect(screen.queryByText('Validating... standby.')).not.toBeInTheDocument();
+        // Advanced to the next module immediately
+        const mainIframe = document.querySelector('iframe.app__instructions') as HTMLIFrameElement;
+        expect(mainIframe.getAttribute('src')).toContain('module-two');
+      });
+
+      it('Background mode: Next advances immediately while the validation call still runs, and a failure is never shown', async () => {
+        mockConfig(devModeAutomationConfig);
+        mockExecuteStageAndGetStatus.mockResolvedValue({ Status: 'failed', Output: 'boom' });
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+        render(
+          <TestWrapper>
+            <App />
+          </TestWrapper>
+        );
+
+        await waitFor(() => expect(screen.getByText('Next')).toBeInTheDocument());
+
+        selectAutomationMode('Background');
+        fireEvent.click(screen.getByText('Next'));
+
+        // Still called (runs "in the background") ...
+        expect(mockExecuteStageAndGetStatus).toHaveBeenCalledWith('module-one', 'validation');
+        // ... but navigation never waited for it, and its failure never surfaces.
+        const mainIframe = document.querySelector('iframe.app__instructions') as HTMLIFrameElement;
+        expect(mainIframe.getAttribute('src')).toContain('module-two');
+        expect(screen.queryByText('Validation Error')).not.toBeInTheDocument();
+
+        // The ignored failure is still logged for dev visibility, never blocking the UI.
+        await waitFor(() => {
+          expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[nookbag] validation failed'), 'boom');
+        });
+        warnSpy.mockRestore();
+      });
+
+      it('safety net: a stale "disabled" localStorage value has no effect when dev_mode is false', async () => {
+        vi.mocked(window.localStorage.getItem).mockImplementation((key) => {
+          if (key === 'sr-automation-mode') return 'disabled';
+          return null;
+        });
+        mockExecuteStageAndGetStatus.mockResolvedValue({ Status: 'successful' });
+        mockConfig(devModeAutomationConfig.replace('dev_mode: true', 'dev_mode: false'));
+
+        render(
+          <TestWrapper>
+            <App />
+          </TestWrapper>
+        );
+
+        await waitFor(() => expect(screen.getByText('Next')).toBeInTheDocument());
+
+        fireEvent.click(screen.getByText('Next'));
+
+        // Even though a prior dev session left "disabled" in localStorage,
+        // dev_mode is false here, so automation still runs normally (the call
+        // happens synchronously when entering the blocking "normal" branch).
+        expect(mockExecuteStageAndGetStatus).toHaveBeenCalledWith('module-one', 'validation');
+      });
+
+      describe('Automation activity log (dev)', () => {
+        beforeEach(() => {
+          // The preceding "safety net" test leaves window.localStorage.getItem
+          // mocked to return 'disabled' for sr-automation-mode. vi.clearAllMocks()
+          // (in the outer beforeEach) clears calls but not that implementation, so
+          // reset it explicitly here to get the real default ('normal').
+          vi.mocked(window.localStorage.getItem).mockReturnValue(null);
+        });
+
+        /** Opens the ViewSwitcher popout and clicks the "Log" button. */
+        function openAutomationLog() {
+          const trigger = screen.getByRole('button', { name: 'View mode switcher' });
+          fireEvent.pointerDown(trigger, { pointerId: 1 });
+          fireEvent.pointerUp(trigger, { pointerId: 1 });
+          fireEvent.click(screen.getByText('Log'));
+        }
+
+        /**
+         * Simulates the main instructions iframe finishing its load — the
+         * point at which onPageChange (and therefore the "setup" automation
+         * call for the newly-loaded module) actually runs. jsdom does not
+         * auto-fire this on mount, so it's driven manually with a stubbed
+         * contentWindow.location matching the given module's rendered path
+         * (mirrors the ./antora/modules/1.0/<module>.html shape produced by
+         * devModeAutomationConfig, which has no antora.dir override).
+         */
+        function triggerIframeLoad(moduleName: string) {
+          const mainIframe = document.querySelector('iframe.app__instructions') as HTMLIFrameElement;
+          Object.defineProperty(mainIframe, 'contentWindow', {
+            configurable: true,
+            value: {
+              location: { pathname: `/antora/modules/1.0/${moduleName}.html` },
+              document: { title: '' },
+            },
+          });
+          fireEvent.load(mainIframe);
+        }
+
+        it('Normal mode: a "setup" failure is recorded to the log (previously invisible entirely, even in Normal mode)', async () => {
+          mockConfig(devModeAutomationConfig);
+          mockExecuteStageAndGetStatus.mockResolvedValue({ Status: 'failed', Output: 'setup boom' });
+
+          render(
+            <TestWrapper>
+              <App />
+            </TestWrapper>
+          );
+
+          await waitFor(() => expect(screen.getByText('Next')).toBeInTheDocument());
+
+          // Automation mode defaults to Normal; module-one has a "setup" script.
+          triggerIframeLoad('module-one');
+
+          await waitFor(() => {
+            expect(mockExecuteStageAndGetStatus).toHaveBeenCalledWith('module-one', 'setup');
+          });
+
+          // No blocking error modal for "setup" (unchanged existing behavior) —
+          // the point of this feature is the dev-only log, not a new blocking UI.
+          expect(screen.queryByText('Validation Error')).not.toBeInTheDocument();
+
+          openAutomationLog();
+          expect(screen.getByText('Automation Activity (dev)')).toBeInTheDocument();
+
+          await waitFor(
+            () => {
+              expect(screen.getByText('module-one')).toBeInTheDocument();
+              expect(screen.getByText('Setup')).toBeInTheDocument();
+              const statusBadge = document.querySelector('.automation-log__badge--status');
+              expect(statusBadge?.textContent).toBe('Failed');
+            },
+            { timeout: 3000 }
+          );
+        });
+
+        it('Background mode: a "validation" call (success or failure) is recorded to the log', async () => {
+          mockConfig(devModeAutomationConfig);
+          mockExecuteStageAndGetStatus.mockResolvedValue({ Status: 'failed', Output: 'boom' });
+          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+          render(
+            <TestWrapper>
+              <App />
+            </TestWrapper>
+          );
+
+          await waitFor(() => expect(screen.getByText('Next')).toBeInTheDocument());
+
+          selectAutomationMode('Background');
+          fireEvent.click(screen.getByText('Next'));
+
+          await waitFor(() => {
+            expect(mockExecuteStageAndGetStatus).toHaveBeenCalledWith('module-one', 'validation');
+          });
+
+          openAutomationLog();
+
+          await waitFor(() => {
+            expect(screen.getByText('module-one')).toBeInTheDocument();
+            expect(screen.getByText('Validation')).toBeInTheDocument();
+            const modeBadge = document.querySelector('.automation-log__badge--mode');
+            expect(modeBadge?.textContent).toBe('Background');
+            const statusBadge = document.querySelector('.automation-log__badge--status');
+            expect(statusBadge?.textContent).toBe('Failed');
+          });
+
+          warnSpy.mockRestore();
+        });
+
+        it('Normal mode: a successful call still records the full Ansible job log (not just the failure-only Output field)', async () => {
+          mockConfig(devModeAutomationConfig);
+          const fullAnsibleLog = 'PLAY [Demo Playbook] ***\n\nTASK [Simple debug task] ***\nok: [host1]\n\nPLAY RECAP ***\nhost1 : ok=2 changed=1 unreachable=0 failed=0';
+          mockExecuteStageAndGetStatus.mockResolvedValue({
+            Status: 'successful',
+            // No "Output" here — the backend only populates that from
+            // validation_failure.out, i.e. only on failures. "Debug" is what
+            // carries the full log on every terminal status, success included.
+            Debug: { 'ansible_runner.stdout': fullAnsibleLog },
+          });
+
+          render(
+            <TestWrapper>
+              <App />
+            </TestWrapper>
+          );
+
+          await waitFor(() => expect(screen.getByText('Next')).toBeInTheDocument());
+
+          // Normal mode is the default — no selectAutomationMode(...) needed.
+          fireEvent.click(screen.getByText('Next'));
+
+          await waitFor(() => {
+            expect(mockExecuteStageAndGetStatus).toHaveBeenCalledWith('module-one', 'validation');
+          });
+
+          openAutomationLog();
+
+          await waitFor(() => {
+            expect(screen.getByText('module-one')).toBeInTheDocument();
+            const statusBadge = document.querySelector('.automation-log__badge--status');
+            expect(statusBadge?.textContent).toBe('Success');
+          });
+
+          // The full job log is present (inside its <details>, which
+          // testing-library renders as accessible regardless of the native
+          // open/closed disclosure state) even though there was no failure
+          // and thus no "Output" field at all. Queried via querySelector
+          // (not screen.getByText) since <pre> preserves the embedded
+          // newlines, which getByText's default whitespace-normalizing
+          // matcher would otherwise fail to match against.
+          expect(screen.getByText('Ansible job log')).toBeInTheDocument();
+          const logPre = document.querySelector('.automation-log__output pre');
+          expect(logPre?.textContent).toBe(fullAnsibleLog);
+        });
+
+        it('Background mode: a "solve" call is recorded to the log', async () => {
+          // module-one has no "solve" script in the base fixture — add one so
+          // the Solve button (and its automation call) is available here.
+          mockConfig(devModeAutomationConfig.replace("scripts: ['setup', 'validation']", "scripts: ['setup', 'validation', 'solve']"));
+          mockExecuteStageAndGetStatus.mockResolvedValue({ Status: 'successful' });
+          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+          render(
+            <TestWrapper>
+              <App />
+            </TestWrapper>
+          );
+
+          await waitFor(() => expect(screen.getByText('Solve')).toBeInTheDocument());
+
+          selectAutomationMode('Background');
+          fireEvent.click(screen.getByText('Solve'));
+
+          await waitFor(() => {
+            expect(mockExecuteStageAndGetStatus).toHaveBeenCalledWith('module-one', 'solve');
+          });
+
+          openAutomationLog();
+
+          // Note: the underlying "Solve" button is still rendered behind the
+          // modal, so we scope the stage-label check to the log entry itself
+          // rather than screen.getByText('Solve') (which would match both).
+          await waitFor(() => {
+            expect(screen.getByText('module-one')).toBeInTheDocument();
+            const stageLabel = document.querySelector('.automation-log__stage');
+            expect(stageLabel?.textContent).toBe('Solve');
+            const modeBadge = document.querySelector('.automation-log__badge--mode');
+            expect(modeBadge?.textContent).toBe('Background');
+            const statusBadge = document.querySelector('.automation-log__badge--status');
+            expect(statusBadge?.textContent).toBe('Success');
+          });
+
+          warnSpy.mockRestore();
+        });
       });
     });
   });

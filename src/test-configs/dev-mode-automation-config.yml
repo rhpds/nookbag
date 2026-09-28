@@ -1,0 +1,16 @@
+type: zero-touch
+dev_mode: true
+view_switcher: true
+tabs:
+  - name: Console
+    url: https://console.example.com
+antora:
+  modules:
+    - name: module-one
+      label: Module One
+      scripts: ['setup', 'validation']
+    - name: module-two
+      label: Module Two
+      scripts: ['validation']
+  name: modules
+  version: '1.0'

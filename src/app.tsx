@@ -19,7 +19,7 @@ import { ForwardIcon, RedoIcon } from '@patternfly/react-icons';
 import ProgressHeader from './progress-header';
 import { executeStageAndGetStatus, API_CONFIG, configFetcher, exitLab, completeLab, formatYamlError, getParentOrigin } from './utils';
 import Loading from './loading';
-import ViewSwitcher, { ViewMode } from './view-switcher';
+import ViewSwitcher, { ViewMode, AutomationMode, AutomationLogEntry } from './view-switcher';
 import { ConfigSchema, TConfig, TTab } from './config-schema';
 import { ModuleSteps, Step, TModule, TProgress } from './types';
 
@@ -50,6 +50,14 @@ type ConfigFetchResult = {
 
 const protocol = window.location.protocol;
 const hostname = window.location.hostname;
+
+// Monotonic id generator for AutomationLogEntry — avoids relying on
+// crypto.randomUUID() (not guaranteed across all supported environments).
+let automationLogIdCounter = 0;
+function nextAutomationLogId(): string {
+  automationLogIdCounter += 1;
+  return `${Date.now()}-${automationLogIdCounter}`;
+}
 
 const createUrlsFromVars = (vars: TTab): TTab => {
   // Handle predefined types
@@ -293,8 +301,42 @@ export default function () {
     (typeof viewSwitcherConfig === 'object' && viewSwitcherConfig?.enabled !== false);
   const viewSwitcherDefaultMode: ViewMode =
     (typeof viewSwitcherConfig === 'object' && viewSwitcherConfig?.default_mode) || 'split';
-  const showViewSwitcher = viewSwitcherEnabled && tabs.length > 0;
+  const devMode = Boolean(config.dev_mode);
+  const showViewSwitcher = (viewSwitcherEnabled && tabs.length > 0) || devMode;
   const [viewMode, setViewMode] = useState<ViewMode | null>(null);
+  // Dev-mode-only automation mode (Normal/Background/Disabled), set via the
+  // ViewSwitcher popout. Safety net: only ever honored when devMode is true,
+  // so a value restored from a previous dev session's localStorage can never
+  // silently affect a real deployment where dev_mode is false.
+  const [automationMode, setAutomationMode] = useState<AutomationMode>('normal');
+  const effectiveAutomationMode: AutomationMode = devMode ? automationMode : 'normal';
+
+  // Dev-only automation activity log (see ViewSwitcher's "Log" button / the
+  // AutomationLogEntry type). Recorded for both 'normal' and 'background'
+  // modes, at every setup/validation/solve call, so devs can see call
+  // results in-page instead of needing the browser Console/Network tab.
+  // Capped to the most recent 50 entries; state is always updated via the
+  // functional updater form (never indexed/mutated in place).
+  const [automationLog, setAutomationLog] = useState<AutomationLogEntry[]>([]);
+
+  function startAutomationLogEntry(moduleName: string, stage: Step, mode: AutomationMode): string {
+    const id = nextAutomationLogId();
+    const entry: AutomationLogEntry = {
+      id,
+      timestamp: Date.now(),
+      module: moduleName,
+      stage,
+      mode,
+      status: 'running',
+      endpoint: `POST /runner/api/${moduleName}/${stage}`,
+    };
+    setAutomationLog((prev) => [...prev, entry].slice(-50));
+    return id;
+  }
+
+  function resolveAutomationLogEntry(id: string, status: 'successful' | 'failed', output?: string, jobLog?: string) {
+    setAutomationLog((prev) => prev.map((entry) => (entry.id === id ? { ...entry, status, output, jobLog } : entry)));
+  }
 
   const showTabsBar =
     (tabs.length > 1 || tabs.some((t) => t.secondary_name)) && (isBasicShowroom || modules.length > 0);
@@ -389,17 +431,39 @@ export default function () {
         }
       }
       const module = modules.find((x) => x.name === key);
-      if (module && isScriptAvailable(module, 'setup')) {
-        setLoaderStatus({ isLoading: true, stage: 'setup' });
-        const executeStageAndGetStatusPromise = executeStageAndGetStatus(key, 'setup');
-        const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
-        Promise.all([executeStageAndGetStatusPromise, minTimeout])
-          .then((_) => {
-            setLoaderStatus({ isLoading: false, stage: null });
-          })
-          .catch(() => {
-            setLoaderStatus({ isLoading: false, stage: null });
-          });
+      if (module && isScriptAvailable(module, 'setup') && effectiveAutomationMode !== 'disabled') {
+        // Recorded to the dev-only automation log in both branches below —
+        // this also fixes the prior gap where a "setup" failure in Normal
+        // mode was swallowed entirely with zero UI feedback.
+        const logId = startAutomationLogEntry(key, 'setup', effectiveAutomationMode);
+        if (effectiveAutomationMode === 'background') {
+          // Fire-and-forget: no loading overlay, no waiting. Failures are
+          // logged for dev visibility only and never surfaced in the UI.
+          executeStageAndGetStatus(key, 'setup')
+            .then((res) => {
+              resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output, res.Debug?.['ansible_runner.stdout']);
+              if (res.Status === 'failed') {
+                console.warn(`[nookbag] setup failed for "${key}" (background mode, ignored):`, res.Output);
+              }
+            })
+            .catch((err) => {
+              resolveAutomationLogEntry(logId, 'failed', err?.message ?? String(err));
+              console.warn(`[nookbag] setup error for "${key}" (background mode, ignored):`, err);
+            });
+        } else {
+          setLoaderStatus({ isLoading: true, stage: 'setup' });
+          const executeStageAndGetStatusPromise = executeStageAndGetStatus(key, 'setup');
+          const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
+          Promise.all([executeStageAndGetStatusPromise, minTimeout])
+            .then(([res]) => {
+              resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output, res.Debug?.['ansible_runner.stdout']);
+              setLoaderStatus({ isLoading: false, stage: null });
+            })
+            .catch((err) => {
+              resolveAutomationLogEntry(logId, 'failed', err?.message ?? String(err));
+              setLoaderStatus({ isLoading: false, stage: null });
+            });
+        }
       }
     }
   }
@@ -502,37 +566,71 @@ export default function () {
     }
   }
 
+  /** Advance to the next module, or complete the lab if already on the last one. */
+  function advanceOrComplete() {
+    if (currIndex + 1 < modules.length) {
+      const target = modules[currIndex + 1];
+      setDefaultTabFor(target);
+      setProgressFor(target.name);
+      setIframeModule(target.name);
+      goToTop();
+    } else {
+      const isEmbedded = typeof window !== 'undefined' && window.self !== window.top;
+      if (!session?.sessionUuid || !isEmbedded) {
+        setValidationMsg({
+          title: 'Lab completed!',
+          message: "You've successfully completed this lab.",
+          type: 'success',
+        });
+      } else {
+        completeLab();
+      }
+    }
+  }
+
   async function handleNext() {
     window.parent.postMessage({ type: 'ANALYTICS', linkType: 'cta', text: currIndex + 1 < modules.length ? 'Next' : 'End', category: 'Lab|Step navigation' }, getParentOrigin());
     setValidationMsg(null);
-    let res: { Status: 'failed' | 'successful'; Output?: string } | null = null;
-    if (isScriptAvailable(modules[currIndex], 'validation')) {
-      setLoaderStatus({ isLoading: true, stage: 'validation' });
-      const executeStageAndGetStatusPromise = executeStageAndGetStatus(modules[currIndex].name, 'validation');
-      const minTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 500));
-      [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
+
+    const hasValidationScript = isScriptAvailable(modules[currIndex], 'validation');
+
+    if (!hasValidationScript || effectiveAutomationMode === 'disabled') {
+      advanceOrComplete();
+      return;
     }
-    if (res === null || res.Status === 'successful') {
+
+    const moduleName = modules[currIndex].name;
+
+    if (effectiveAutomationMode === 'background') {
+      // Fire-and-forget: navigate immediately, no waiting, no delay. Failures
+      // are logged for dev visibility only and never block/surface in the UI.
+      const logId = startAutomationLogEntry(moduleName, 'validation', effectiveAutomationMode);
+      executeStageAndGetStatus(moduleName, 'validation')
+        .then((res) => {
+          resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output, res.Debug?.['ansible_runner.stdout']);
+          if (res.Status === 'failed') {
+            console.warn(`[nookbag] validation failed for "${moduleName}" (background mode, ignored):`, res.Output);
+          }
+        })
+        .catch((err) => {
+          resolveAutomationLogEntry(logId, 'failed', err?.message ?? String(err));
+          console.warn(`[nookbag] validation error for "${moduleName}" (background mode, ignored):`, err);
+        });
+      advanceOrComplete();
+      return;
+    }
+
+    // Normal mode: block navigation on the validation result, as before.
+    const logId = startAutomationLogEntry(moduleName, 'validation', effectiveAutomationMode);
+    setLoaderStatus({ isLoading: true, stage: 'validation' });
+    const executeStageAndGetStatusPromise = executeStageAndGetStatus(moduleName, 'validation');
+    const minTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 500));
+    const [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
+    resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output, res.Debug?.['ansible_runner.stdout']);
+    if (res.Status === 'successful') {
       // Clear loader immediately on successful validation to avoid getting stuck
       setLoaderStatus({ isLoading: false, stage: null });
-      if (currIndex + 1 < modules.length) {
-        const target = modules[currIndex + 1];
-        setDefaultTabFor(target);
-        setProgressFor(target.name);
-        setIframeModule(target.name);
-        goToTop();
-      } else {
-        const isEmbedded = typeof window !== 'undefined' && window.self !== window.top;
-        if (!session?.sessionUuid || !isEmbedded) {
-          setValidationMsg({
-            title: 'Lab completed!',
-            message: "You've successfully completed this lab.",
-            type: 'success',
-          });
-        } else {
-          completeLab();
-        }
-      }
+      advanceOrComplete();
     } else {
       setLoaderStatus({ isLoading: false, stage: null });
       setValidationMsg({ message: res.Output || '', title: 'Validation Error', type: 'danger' });
@@ -541,17 +639,41 @@ export default function () {
 
   async function executeSolve() {
     window.parent.postMessage({ type: 'ANALYTICS', linkType: 'cta', text: 'Solve', category: 'Lab|Step navigation' }, getParentOrigin());
-    if (isScriptAvailable(modules[currIndex], 'solve')) {
-      setLoaderStatus({ isLoading: true, stage: 'solve' });
-      const executeStageAndGetStatusPromise = executeStageAndGetStatus(modules[currIndex].name, 'solve');
-      const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
-      const [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
-      if (res.Status === 'successful') {
-        setLoaderStatus({ isLoading: false, stage: null });
-      } else {
-        setLoaderStatus({ isLoading: false, stage: null });
-        setValidationMsg({ message: res.Output || '', title: 'Validation Error', type: 'danger' });
-      }
+
+    if (!isScriptAvailable(modules[currIndex], 'solve') || effectiveAutomationMode === 'disabled') {
+      return;
+    }
+
+    const moduleName = modules[currIndex].name;
+
+    if (effectiveAutomationMode === 'background') {
+      // Fire-and-forget: no loading overlay, no waiting, errors ignored (dev visibility only).
+      const logId = startAutomationLogEntry(moduleName, 'solve', effectiveAutomationMode);
+      executeStageAndGetStatus(moduleName, 'solve')
+        .then((res) => {
+          resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output, res.Debug?.['ansible_runner.stdout']);
+          if (res.Status === 'failed') {
+            console.warn(`[nookbag] solve failed for "${moduleName}" (background mode, ignored):`, res.Output);
+          }
+        })
+        .catch((err) => {
+          resolveAutomationLogEntry(logId, 'failed', err?.message ?? String(err));
+          console.warn(`[nookbag] solve error for "${moduleName}" (background mode, ignored):`, err);
+        });
+      return;
+    }
+
+    const logId = startAutomationLogEntry(moduleName, 'solve', effectiveAutomationMode);
+    setLoaderStatus({ isLoading: true, stage: 'solve' });
+    const executeStageAndGetStatusPromise = executeStageAndGetStatus(moduleName, 'solve');
+    const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
+    const [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
+    resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output, res.Debug?.['ansible_runner.stdout']);
+    if (res.Status === 'successful') {
+      setLoaderStatus({ isLoading: false, stage: null });
+    } else {
+      setLoaderStatus({ isLoading: false, stage: null });
+      setValidationMsg({ message: res.Output || '', title: 'Validation Error', type: 'danger' });
     }
   }
 
@@ -644,6 +766,9 @@ export default function () {
           defaultMode={viewSwitcherDefaultMode}
           onModeChange={setViewMode}
           persistUrlState={persistUrlState}
+          devMode={devMode}
+          onAutomationModeChange={setAutomationMode}
+          automationLog={automationLog}
         />
       )}
       <div className={`app-wrapper${viewMode === 'instructions' ? ' sr-view-instructions' : viewMode === 'split' ? ' sr-view-split' : viewMode === 'tabs' ? ' sr-view-tabs' : ''}`}>
