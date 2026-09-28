@@ -334,8 +334,8 @@ export default function () {
     return id;
   }
 
-  function resolveAutomationLogEntry(id: string, status: 'successful' | 'failed', output?: string) {
-    setAutomationLog((prev) => prev.map((entry) => (entry.id === id ? { ...entry, status, output } : entry)));
+  function resolveAutomationLogEntry(id: string, status: 'successful' | 'failed', output?: string, jobLog?: string) {
+    setAutomationLog((prev) => prev.map((entry) => (entry.id === id ? { ...entry, status, output, jobLog } : entry)));
   }
 
   const showTabsBar =
@@ -441,7 +441,7 @@ export default function () {
           // logged for dev visibility only and never surfaced in the UI.
           executeStageAndGetStatus(key, 'setup')
             .then((res) => {
-              resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output);
+              resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output, res.Debug?.['ansible_runner.stdout']);
               if (res.Status === 'failed') {
                 console.warn(`[nookbag] setup failed for "${key}" (background mode, ignored):`, res.Output);
               }
@@ -456,7 +456,7 @@ export default function () {
           const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
           Promise.all([executeStageAndGetStatusPromise, minTimeout])
             .then(([res]) => {
-              resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output);
+              resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output, res.Debug?.['ansible_runner.stdout']);
               setLoaderStatus({ isLoading: false, stage: null });
             })
             .catch((err) => {
@@ -607,7 +607,7 @@ export default function () {
       const logId = startAutomationLogEntry(moduleName, 'validation', effectiveAutomationMode);
       executeStageAndGetStatus(moduleName, 'validation')
         .then((res) => {
-          resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output);
+          resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output, res.Debug?.['ansible_runner.stdout']);
           if (res.Status === 'failed') {
             console.warn(`[nookbag] validation failed for "${moduleName}" (background mode, ignored):`, res.Output);
           }
@@ -626,7 +626,7 @@ export default function () {
     const executeStageAndGetStatusPromise = executeStageAndGetStatus(moduleName, 'validation');
     const minTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 500));
     const [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
-    resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output);
+    resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output, res.Debug?.['ansible_runner.stdout']);
     if (res.Status === 'successful') {
       // Clear loader immediately on successful validation to avoid getting stuck
       setLoaderStatus({ isLoading: false, stage: null });
@@ -651,7 +651,7 @@ export default function () {
       const logId = startAutomationLogEntry(moduleName, 'solve', effectiveAutomationMode);
       executeStageAndGetStatus(moduleName, 'solve')
         .then((res) => {
-          resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output);
+          resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output, res.Debug?.['ansible_runner.stdout']);
           if (res.Status === 'failed') {
             console.warn(`[nookbag] solve failed for "${moduleName}" (background mode, ignored):`, res.Output);
           }
@@ -668,7 +668,7 @@ export default function () {
     const executeStageAndGetStatusPromise = executeStageAndGetStatus(moduleName, 'solve');
     const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
     const [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
-    resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output);
+    resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output, res.Debug?.['ansible_runner.stdout']);
     if (res.Status === 'successful') {
       setLoaderStatus({ isLoading: false, stage: null });
     } else {

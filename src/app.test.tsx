@@ -1056,6 +1056,52 @@ describe('UI Config Integration Tests', () => {
           warnSpy.mockRestore();
         });
 
+        it('Normal mode: a successful call still records the full Ansible job log (not just the failure-only Output field)', async () => {
+          mockConfig(devModeAutomationConfig);
+          const fullAnsibleLog = 'PLAY [Demo Playbook] ***\n\nTASK [Simple debug task] ***\nok: [host1]\n\nPLAY RECAP ***\nhost1 : ok=2 changed=1 unreachable=0 failed=0';
+          mockExecuteStageAndGetStatus.mockResolvedValue({
+            Status: 'successful',
+            // No "Output" here — the backend only populates that from
+            // validation_failure.out, i.e. only on failures. "Debug" is what
+            // carries the full log on every terminal status, success included.
+            Debug: { 'ansible_runner.stdout': fullAnsibleLog },
+          });
+
+          render(
+            <TestWrapper>
+              <App />
+            </TestWrapper>
+          );
+
+          await waitFor(() => expect(screen.getByText('Next')).toBeInTheDocument());
+
+          // Normal mode is the default — no selectAutomationMode(...) needed.
+          fireEvent.click(screen.getByText('Next'));
+
+          await waitFor(() => {
+            expect(mockExecuteStageAndGetStatus).toHaveBeenCalledWith('module-one', 'validation');
+          });
+
+          openAutomationLog();
+
+          await waitFor(() => {
+            expect(screen.getByText('module-one')).toBeInTheDocument();
+            const statusBadge = document.querySelector('.automation-log__badge--status');
+            expect(statusBadge?.textContent).toBe('Success');
+          });
+
+          // The full job log is present (inside its <details>, which
+          // testing-library renders as accessible regardless of the native
+          // open/closed disclosure state) even though there was no failure
+          // and thus no "Output" field at all. Queried via querySelector
+          // (not screen.getByText) since <pre> preserves the embedded
+          // newlines, which getByText's default whitespace-normalizing
+          // matcher would otherwise fail to match against.
+          expect(screen.getByText('Ansible job log')).toBeInTheDocument();
+          const logPre = document.querySelector('.automation-log__output pre');
+          expect(logPre?.textContent).toBe(fullAnsibleLog);
+        });
+
         it('Background mode: a "solve" call is recorded to the log', async () => {
           // module-one has no "solve" script in the base fixture — add one so
           // the Solve button (and its automation call) is available here.

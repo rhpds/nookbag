@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import useSWR from 'swr/immutable';
 import ViewSwitcher, { type AutomationLogEntry } from './view-switcher';
@@ -428,6 +428,19 @@ describe('ViewSwitcher automation log drawer', () => {
 
   beforeEach(() => {
     vi.mocked(window.localStorage.getItem).mockReturnValue(null);
+    // @testing-library/user-event's userEvent.setup() (used by earlier tests
+    // in this file, e.g. "calls onModeChange when a mode is selected")
+    // eagerly replaces navigator.clipboard with its own stub via a getter
+    // (see attachClipboardStubToView in its Clipboard.js) and only detaches
+    // it in a global afterAll — so it silently outlives those tests and
+    // shadows the plain vi.fn() mock from test-setup.ts for the rest of the
+    // file. Re-assert our own mock here so these clipboard-dependent tests
+    // are deterministic regardless of what ran earlier in the file.
+    Object.defineProperty(window.navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      writable: true,
+      configurable: true,
+    });
   });
 
   afterEach(() => {
@@ -483,6 +496,103 @@ describe('ViewSwitcher automation log drawer', () => {
       (el) => el.textContent
     );
     expect(statusBadges).toEqual(['Failed', 'Success']);
+  });
+
+  it('renders the full Ansible job log for an entry when jobLog is set, even on success', () => {
+    const entriesWithLog: AutomationLogEntry[] = [
+      {
+        id: '3',
+        timestamp: Date.now(),
+        module: 'module-one',
+        stage: 'setup',
+        mode: 'normal',
+        status: 'successful',
+        // No "output" here — jobLog must render independently of it.
+        jobLog: 'PLAY [Demo] ***\nTASK [debug] ***\nok: [host1]\nPLAY RECAP ***',
+        endpoint: 'POST /runner/api/module-one/setup',
+      },
+    ];
+    setup({ devMode: true, automationLog: entriesWithLog });
+    expandPanel();
+
+    fireEvent.click(screen.getByText('Log'));
+
+    expect(screen.getByText('Ansible job log')).toBeInTheDocument();
+    // Queried via querySelector (not screen.getByText) since <pre> preserves
+    // embedded newlines, which getByText's whitespace-normalizing matcher
+    // would otherwise fail to match against.
+    const logPre = document.querySelector('.automation-log__output pre');
+    expect(logPre?.textContent).toBe(entriesWithLog[0].jobLog);
+  });
+
+  it('Copy button copies the Output text to the clipboard', async () => {
+    const entriesWithOutput: AutomationLogEntry[] = [
+      {
+        id: '4',
+        timestamp: Date.now(),
+        module: 'module-one',
+        stage: 'validation',
+        mode: 'normal',
+        status: 'failed',
+        output: 'validation failed: file missing',
+        endpoint: 'POST /runner/api/module-one/validation',
+      },
+    ];
+    setup({ devMode: true, automationLog: entriesWithOutput });
+    expandPanel();
+    fireEvent.click(screen.getByText('Log'));
+
+    const writeTextSpy = vi.mocked(navigator.clipboard.writeText);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy output to clipboard' }));
+
+    // Wrapped in waitFor (rather than a bare synchronous assertion) since
+    // handleCopy's setCopied(true) happens in a microtask after
+    // copyToClipboard resolves — waitFor's act()-aware polling avoids the
+    // "update not wrapped in act(...)" warning that a synchronous assertion
+    // would otherwise trigger here.
+    await waitFor(() => {
+      expect(writeTextSpy).toHaveBeenCalledWith('validation failed: file missing');
+    });
+  });
+
+  it('Copy button copies the full Ansible job log to the clipboard, and shows a "copied" confirmation', async () => {
+    const jobLog = 'PLAY [Demo] ***\nTASK [debug] ***\nok: [host1]\nPLAY RECAP ***';
+    const entriesWithLog: AutomationLogEntry[] = [
+      {
+        id: '3',
+        timestamp: Date.now(),
+        module: 'module-one',
+        stage: 'setup',
+        mode: 'normal',
+        status: 'successful',
+        jobLog,
+        endpoint: 'POST /runner/api/module-one/setup',
+      },
+    ];
+    setup({ devMode: true, automationLog: entriesWithLog });
+    expandPanel();
+    fireEvent.click(screen.getByText('Log'));
+
+    const writeTextSpy = vi.mocked(navigator.clipboard.writeText);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Ansible job log to clipboard' }));
+
+    expect(writeTextSpy).toHaveBeenCalledWith(jobLog);
+
+    // Icon/aria-label swap to a transient "copied" confirmation state.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Copied Ansible job log' })).toBeInTheDocument();
+    });
+  });
+
+  it('does not render an "Ansible job log" section when jobLog is absent', () => {
+    setup({ devMode: true, automationLog: sampleEntries });
+    expandPanel();
+
+    fireEvent.click(screen.getByText('Log'));
+
+    expect(screen.queryByText('Ansible job log')).not.toBeInTheDocument();
   });
 
   it('closes the drawer when Close is clicked', () => {

@@ -110,9 +110,52 @@
   color: #06c;
 }
 
-.automation-log__output pre {
-  margin: 6px 0 0;
-  padding: 8px;
+/* Wraps a copyable <pre> block so the copy button can be absolutely
+   positioned in its corner without affecting the <pre>'s own layout. */
+.automation-log__output-body {
+  position: relative;
+  margin-top: 6px;
+}
+
+/*
+ * Always visible (not a hover-reveal affordance) — a persistent chip
+ * (background + border) makes it unmistakable at a glance against the dark
+ * log background, matching common "copy code" button conventions
+ * (GitHub, VS Code, etc).
+ */
+.automation-log__copy-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 14px;
+}
+
+/*
+ * Icon color itself is set via the `color` prop on <CopyIcon>/<CheckIcon>
+ * in automation-log-drawer.tsx (#f0f0f0 on the #1e1e1e log background is a
+ * ~16:1 contrast ratio, well past the WCAG 2.1 SC 1.4.11 minimum of 3:1 for
+ * UI components/icons) — no CSS override needed here for that part.
+ */
+.automation-log__copy-btn:hover {
+  background: rgba(255, 255, 255, 0.26);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Dark surfaces can otherwise swallow the browser's default focus ring —
+   make keyboard focus explicitly visible. */
+.automation-log__copy-btn:focus-visible {
+  outline: 2px solid #73bcf7;
+  outline-offset: 1px;
+}
+
+.automation-log__output-body pre {
+  margin: 0;
+  padding: 8px 32px 8px 8px;
   background: #1e1e1e;
   color: #d4d4d4;
   border-radius: 4px;

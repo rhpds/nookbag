@@ -58,6 +58,8 @@ export type AutomationLogEntry = {
   mode: AutomationMode;
   status: 'running' | 'successful' | 'failed';
   output?: string;
+  /** Full Ansible Runner stdout for the whole play — present on success too. */
+  jobLog?: string;
   endpoint: string;
 };
 
