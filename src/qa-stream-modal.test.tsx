@@ -35,6 +35,28 @@ describe('QaStreamModal', () => {
     expect(screen.getByText('E2E')).toBeInTheDocument();
   });
 
+  it('uses low-consequence copy and a "primary" Run button for the read-only "healthcheck" stage', () => {
+    render(<QaStreamModal stage="healthcheck" onClose={vi.fn()} />);
+
+    expect(screen.getByText(/read-only check/)).toBeInTheDocument();
+    expect(screen.queryByText(/may affect workshop progress/)).not.toBeInTheDocument();
+
+    const runButton = screen.getByRole('button', { name: 'Run' });
+    expect(runButton).toHaveClass('pf-m-primary');
+    expect(runButton).not.toHaveClass('pf-m-warning');
+  });
+
+  it('keeps the cautious copy and "warning" Run button for other stages (e.g. "e2e")', () => {
+    render(<QaStreamModal stage="e2e" onClose={vi.fn()} />);
+
+    expect(screen.getByText(/may affect workshop progress/)).toBeInTheDocument();
+    expect(screen.queryByText(/read-only check/)).not.toBeInTheDocument();
+
+    const runButton = screen.getByRole('button', { name: 'Run' });
+    expect(runButton).toHaveClass('pf-m-warning');
+    expect(runButton).not.toHaveClass('pf-m-primary');
+  });
+
   it('Cancel calls onClose without ever opening an EventSource', () => {
     const onClose = vi.fn();
     render(<QaStreamModal stage="healthcheck" onClose={onClose} />);

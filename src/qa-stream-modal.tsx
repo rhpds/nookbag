@@ -25,6 +25,15 @@ type RunState = 'idle' | 'running' | 'done' | 'error';
 
 const STREAM_BASE = '/stream/qa';
 
+/**
+ * qa-automation stages known to be read-only checks — they inspect the live
+ * environment but don't mutate it or affect workshop progress, unlike e.g.
+ * "e2e" (which can complete the workshop) or other custom stages a workshop
+ * author might add. Gets the lower-consequence confirmation copy + button
+ * styling below; anything not in this set keeps the more cautious defaults.
+ */
+const READ_ONLY_STAGES = new Set(['healthcheck']);
+
 /** DONE sentinel sent by the server as a plain (non-JSON) SSE data line. */
 const DONE_SENTINEL = '__DONE__';
 
@@ -36,6 +45,7 @@ export default function QaStreamModal({ stage, onClose }: QaStreamModalProps) {
 
   const endpoint = `${STREAM_BASE}/${stage}`;
   const stageLabel = formatStageLabel(stage);
+  const isReadOnly = READ_ONLY_STAGES.has(stage);
 
   function closeStream() {
     if (eventSourceRef.current) {
@@ -117,8 +127,9 @@ export default function QaStreamModal({ stage, onClose }: QaStreamModalProps) {
       <ModalBody>
         {state === 'idle' ? (
           <div className="qa-stream-modal__confirm">
-            Run {stageLabel} now? This executes the automation script against the live environment
-            and may affect workshop progress.
+            {isReadOnly
+              ? `Run ${stageLabel} now? This is a quick, read-only check against the live environment — it does not change anything or affect workshop progress.`
+              : `Run ${stageLabel} now? This executes the automation script against the live environment and may affect workshop progress.`}
           </div>
         ) : (
           <>
@@ -147,11 +158,15 @@ export default function QaStreamModal({ stage, onClose }: QaStreamModalProps) {
             <Button key="cancel" variant="secondary" onClick={handleClose}>
               Cancel
             </Button>
-            {/* "warning" (not "primary") per PatternFly guidance: reserved for
-                significant actions — this runs the automation script against
-                the live environment and, for stages like e2e, can complete
-                the workshop. */}
-            <Button key="run" variant="warning" onClick={handleRun}>
+            {/* "primary" (blue) for read-only stages like healthcheck — low
+                consequence, no need for a cautionary color. "warning" stays
+                for everything else per PatternFly guidance (reserved for
+                significant actions): this runs the automation script
+                against the live environment and, for stages like e2e, can
+                complete the workshop. PatternFly's Button has no dedicated
+                "success"/green variant, so "primary" is the closest
+                low-consequence option. */}
+            <Button key="run" variant={isReadOnly ? 'primary' : 'warning'} onClick={handleRun}>
               Run
             </Button>
           </>
