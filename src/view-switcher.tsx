@@ -258,12 +258,13 @@ export default function ViewSwitcher({
   // list) — i.e. runtime automation actually exists for this workshop. Gates
   // the Normal/Background/Disabled/Log controls below, since they have
   // nothing to control for a workshop with only qa-automation playbooks.
-  const hasRuntimeAutomation: boolean =
+  const hasRuntimeAutomation: boolean = Boolean(
     devMode &&
-    !!runnerConfig &&
-    Object.entries(runnerConfig).some(
-      ([key, stages]) => key !== 'qa' && Array.isArray(stages) && stages.length > 0
-    );
+      runnerConfig &&
+      Object.entries(runnerConfig).some(
+        ([key, stages]) => key !== 'qa' && Array.isArray(stages) && stages.length > 0
+      )
+  );
 
   const popoutRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
