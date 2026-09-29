@@ -851,10 +851,18 @@ describe('UI Config Integration Tests', () => {
               isLoading: false,
             };
           }
-          // Module-script/qa-stage config (API_CONFIG): null so the inline
-          // antora.modules[].scripts from the YAML fixture are used as-is.
+          // Module-script/qa-stage config (API_CONFIG). Returns a placeholder
+          // runtime-automation module under a name that doesn't match either
+          // "module-one" or "module-two", so:
+          //   - app.tsx's configData-based override never matches either
+          //     module, leaving their scripts to come from the inline
+          //     antora.modules[].scripts in the YAML fixture, as-is.
+          //   - ViewSwitcher's hasRuntimeAutomation still sees a real
+          //     (non-"qa") module key here, so the Automation (dev) section
+          //     (Normal/Background/Disabled/Log) renders for these tests —
+          //     see hasRuntimeAutomation in view-switcher.tsx.
           return {
-            data: null,
+            data: { 'unrelated-module': ['setup'] },
             error: null,
             mutate: vi.fn(),
             isValidating: false,

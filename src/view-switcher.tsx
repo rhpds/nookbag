@@ -21,7 +21,12 @@
  *
  * The dev-only "Automation (dev)" section also includes a "Log" button that
  * opens a read-only AutomationLogDrawer of recent automation calls — see
- * AutomationLogEntry / the automationLog prop.
+ * AutomationLogEntry / the automationLog prop. This section only renders
+ * when devMode is true AND /runner/api/config reports at least one real
+ * runtime-automation module (i.e. some key other than "qa" with stages) —
+ * see hasRuntimeAutomation below. Workshops with only qa-automation
+ * playbooks and no runtime-automation modules never see this section, since
+ * there would be nothing for Normal/Background/Disabled to control.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import useSWRImmutable from 'swr/immutable';
@@ -75,8 +80,15 @@ type ViewSwitcherProps = {
   persistUrlState?: boolean;
   /**
    * When true, renders dev-only qa-automation buttons (Healthcheck, E2E, ...)
-   * in the popout, discovered dynamically from /runner/api/config's `qa` list.
-   * Also enables the Normal/Background/Disabled automation-mode control.
+   * in the popout, discovered dynamically from /runner/api/config's `qa` list
+   * (only shown when that list is non-empty, i.e. qa-automation playbooks
+   * actually exist). Also enables the Normal/Background/Disabled
+   * automation-mode control and its "Log" button, but only when
+   * /runner/api/config additionally reports at least one real
+   * runtime-automation module (a key other than "qa" with stages) — see
+   * hasRuntimeAutomation. A workshop with only qa-automation and no
+   * runtime-automation modules will see the qa buttons but not the
+   * Normal/Background/Disabled/Log controls.
    */
   devMode?: boolean;
   /**
@@ -241,6 +253,17 @@ export default function ViewSwitcher({
     { revalidateOnFocus: false, revalidateOnReconnect: false, revalidateIfStale: false }
   );
   const qaStages: string[] = devMode && runnerConfig && Array.isArray(runnerConfig.qa) ? runnerConfig.qa : [];
+  // True only when the runner API reports at least one real runtime-automation
+  // module (any key other than the synthetic "qa" one, with a non-empty stage
+  // list) — i.e. runtime automation actually exists for this workshop. Gates
+  // the Normal/Background/Disabled/Log controls below, since they have
+  // nothing to control for a workshop with only qa-automation playbooks.
+  const hasRuntimeAutomation: boolean =
+    devMode &&
+    !!runnerConfig &&
+    Object.entries(runnerConfig).some(
+      ([key, stages]) => key !== 'qa' && Array.isArray(stages) && stages.length > 0
+    );
 
   const popoutRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -491,7 +514,7 @@ export default function ViewSwitcher({
             </button>
           </React.Fragment>
         ))}
-        {devMode && (
+        {devMode && hasRuntimeAutomation && (
           <>
             <div className="sr-sep" aria-hidden="true" />
             <div className="sr-section-label" aria-hidden="true">Automation (dev)</div>

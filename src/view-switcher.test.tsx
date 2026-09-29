@@ -9,9 +9,16 @@ import { MockEventSource } from './test-setup';
 // Mock useSWR (immutable) — same convention as app.test.tsx. Avoids relying on
 // the real SWR cache (which would leak state between test cases sharing the
 // same /runner/api/config key).
+//
+// Defaults to a runner config with one real runtime-automation module (not
+// just the synthetic "qa" key), so tests that exercise the Automation (dev)
+// section (Normal/Background/Disabled/Log) don't each need to stub this
+// individually — hasRuntimeAutomation requires at least one non-"qa" key
+// with stages. Tests specifically covering qa-stage discovery or the
+// qa-only/no-runtime-automation case override this via mockUseSWR below.
 vi.mock('swr/immutable', () => ({
   default: vi.fn(() => ({
-    data: null,
+    data: { 'module-one': ['setup', 'validation'] },
     error: null,
     mutate: vi.fn(),
     isValidating: false,
@@ -285,8 +292,11 @@ describe('ViewSwitcher dev mode buttons', () => {
   });
 
   it('ArrowRight/ArrowLeft roving navigation reaches qa buttons from the mode buttons', () => {
+    // Includes a real runtime-automation module alongside the qa stages so
+    // both the Automation (dev) section (Normal/Background/Disabled/Log) and
+    // the qa buttons render, exercising the full roving-nav order.
     mockUseSWR.mockReturnValue({
-      data: { qa: ['healthcheck', 'e2e'] },
+      data: { 'module-one': ['setup'], qa: ['healthcheck', 'e2e'] },
       error: null,
       mutate: vi.fn(),
       isValidating: false,
@@ -324,11 +334,93 @@ describe('ViewSwitcher dev mode buttons', () => {
     fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
     expect(document.activeElement).toHaveAttribute('title', expect.stringContaining('Full-width instructions'));
   });
+
+  it('does not render the Automation (dev) section when devMode is true but only qa-automation stages are discovered (no runtime automation modules)', () => {
+    // Only the synthetic "qa" key is present — no real runtime-automation
+    // module — so there is nothing for Normal/Background/Disabled/Log to
+    // control. The qa buttons themselves should still render.
+    mockUseSWR.mockReturnValue({
+      data: { qa: ['healthcheck', 'e2e'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    setup({ devMode: true });
+    expandPanel();
+
+    expect(screen.queryByText('Normal')).not.toBeInTheDocument();
+    expect(screen.queryByText('Background')).not.toBeInTheDocument();
+    expect(screen.queryByText('Disabled')).not.toBeInTheDocument();
+    expect(screen.queryByText('Log')).not.toBeInTheDocument();
+    expect(screen.getByText('Healthcheck')).toBeInTheDocument();
+    expect(screen.getByText('E2E')).toBeInTheDocument();
+  });
+
+  it('renders the Automation (dev) section when devMode is true and at least one runtime automation module is discovered', () => {
+    mockUseSWR.mockReturnValue({
+      data: { 'module-one': ['setup'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    setup({ devMode: true });
+    expandPanel();
+
+    expect(screen.getByText('Normal')).toBeInTheDocument();
+    expect(screen.getByText('Background')).toBeInTheDocument();
+    expect(screen.getByText('Disabled')).toBeInTheDocument();
+    expect(screen.getByText('Log')).toBeInTheDocument();
+  });
+
+  it('roving navigation skips straight from Tabs to the qa buttons when only qa-automation stages are discovered (no Automation (dev) section)', () => {
+    mockUseSWR.mockReturnValue({
+      data: { qa: ['healthcheck', 'e2e'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    setup({ devMode: true });
+    expandPanel();
+
+    const toolbar = screen.getByRole('toolbar', { name: 'View mode switcher' });
+    const active = toolbar.querySelector<HTMLButtonElement>('.sr-mode-btn.sr-active');
+    active?.focus();
+
+    // Split (active) -> Tabs -> Healthcheck -> E2E (Automation (dev) section absent)
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByText('Healthcheck').closest('button'));
+
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByText('E2E').closest('button'));
+
+    // Wraps back around to the first mode button (Instructions)
+    fireEvent.keyDown(toolbar, { key: 'ArrowRight' });
+    expect(document.activeElement).toHaveAttribute('title', expect.stringContaining('Full-width instructions'));
+  });
 });
 
 describe('ViewSwitcher automation-mode buttons', () => {
+  const mockUseSWR = vi.mocked(useSWR);
+
   beforeEach(() => {
     vi.mocked(window.localStorage.getItem).mockReturnValue(null);
+    // A real runtime-automation module must be present for the
+    // Automation (dev) section (Normal/Background/Disabled/Log) to render —
+    // see hasRuntimeAutomation in view-switcher.tsx.
+    mockUseSWR.mockReturnValue({
+      data: { 'module-one': ['setup', 'validation'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
   });
 
   afterEach(() => {
@@ -353,6 +445,23 @@ describe('ViewSwitcher automation-mode buttons', () => {
     expect(screen.getByText('Disabled')).toBeInTheDocument();
     expect(screen.getByText('Normal').closest('button')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('Background').closest('button')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('does not render automation-mode buttons when devMode is true but no runtime automation modules exist', () => {
+    mockUseSWR.mockReturnValue({
+      data: null,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    setup({ devMode: true });
+    expandPanel();
+
+    expect(screen.queryByText('Normal')).not.toBeInTheDocument();
+    expect(screen.queryByText('Background')).not.toBeInTheDocument();
+    expect(screen.queryByText('Disabled')).not.toBeInTheDocument();
   });
 
   it('calls onAutomationModeChange with the restored/default mode on mount', () => {
@@ -403,6 +512,8 @@ describe('ViewSwitcher automation-mode buttons', () => {
 });
 
 describe('ViewSwitcher automation log drawer', () => {
+  const mockUseSWR = vi.mocked(useSWR);
+
   const sampleEntries: AutomationLogEntry[] = [
     {
       id: '1',
@@ -428,6 +539,16 @@ describe('ViewSwitcher automation log drawer', () => {
 
   beforeEach(() => {
     vi.mocked(window.localStorage.getItem).mockReturnValue(null);
+    // A real runtime-automation module must be present for the "Log" button
+    // (part of the Automation (dev) section) to render — see
+    // hasRuntimeAutomation in view-switcher.tsx.
+    mockUseSWR.mockReturnValue({
+      data: { 'module-one': ['setup', 'validation'] },
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
     // @testing-library/user-event's userEvent.setup() (used by earlier tests
     // in this file, e.g. "calls onModeChange when a mode is selected")
     // eagerly replaces navigator.clipboard with its own stub via a getter
