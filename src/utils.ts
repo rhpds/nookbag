@@ -22,11 +22,10 @@ export async function getJobStatus(jobId: string): Promise<JobResult> {
   async function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
-  const maxAttempts = 60; // ~ up to ~10 minutes worst case with backoff below
-  const maxDelayMs = 10_000;
+  const maxAttempts = 120;
   let attempt = 0;
-  let delayMs = 1_000;
-  // First immediate check, then poll with capped exponential backoff
+  // Fast initial polls (250ms) to catch quick jobs, then ramp to 1s, then
+  // exponential backoff capped at 5s for longer-running playbooks.
   while (attempt <= maxAttempts) {
     const response = await fetch(`${API_PATH}/job/${jobId}`);
     const data = await response.json();
@@ -36,8 +35,8 @@ export async function getJobStatus(jobId: string): Promise<JobResult> {
     }
     attempt += 1;
     if (attempt > maxAttempts) break;
+    const delayMs = attempt <= 6 ? 250 : attempt <= 12 ? 1_000 : Math.min(1_000 * Math.pow(1.5, attempt - 12), 5_000);
     await sleep(delayMs);
-    delayMs = Math.min(delayMs * 2, maxDelayMs);
   }
   return Promise.resolve({ Status: 'failed', Output: 'Job status polling timed out' });
 }
