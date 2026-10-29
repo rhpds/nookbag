@@ -48,9 +48,10 @@
   /**
    * Deliberately minimal, NOT a general YAML parser: extracts only the
    * small, flat `tabs:` list shape nookbag's own config schema actually
-   * uses (see docs/UI-CONFIG.md / src/config-schema.ts) -- `- name:` items
-   * with plain `url:`/`port:`/`path:`/`external:`/`type:` fields, no
-   * nested mappings. `type:` presets (terminal/codeserver/parasol/etc.) are
+   * uses (see docs/UI-CONFIG.md / src/config-schema.ts) -- list items with
+   * plain `name:`/`url:`/`port:`/`path:`/`external:`/`type:` fields in any
+   * order (YAML mapping key order is never significant), no nested
+   * mappings. `type:` presets (terminal/codeserver/parasol/etc.) are
    * expanded via applyTypePreset() so tabs that only specify `type:` (no
    * explicit port/path) are still probeable. Any config that doesn't match
    * this shape just yields fewer probe targets; it never throws (callers
@@ -90,24 +91,33 @@
 
       if (!inTabs) continue;
 
-      const itemMatch = /^-\s*name\s*:\s*(.+)$/.exec(trimmed);
-      if (itemMatch) {
+      // A new list item starts at `- <rest>`. The recognized fields
+      // (name/url/port/path/external/type) can appear in any order within
+      // an item -- YAML mapping key order is never significant -- so item
+      // boundaries are detected purely from the leading `-`, not from
+      // `name:` specifically appearing first.
+      const itemStart = /^-\s*(.*)$/.exec(trimmed);
+      if (itemStart) {
         flush();
-        current = { name: stripQuotes(itemMatch[1].trim()) };
+        current = {};
+        if (itemStart[1]) applyField(current, itemStart[1]);
         continue;
       }
 
       if (!current) continue;
 
-      const fieldMatch = /^(url|port|path|external|type)\s*:\s*(.+)$/.exec(trimmed);
-      if (fieldMatch) {
-        const [, key, rawValue] = fieldMatch;
-        const value = stripQuotes(rawValue.trim());
-        current[key] = key === 'external' ? value === 'true' : value;
-      }
+      applyField(current, trimmed);
     }
     flush();
     return tabs;
+  }
+
+  function applyField(current, text) {
+    const fieldMatch = /^(name|url|port|path|external|type)\s*:\s*(.+)$/.exec(text);
+    if (!fieldMatch) return;
+    const [, key, rawValue] = fieldMatch;
+    const value = stripQuotes(rawValue.trim());
+    current[key] = key === 'external' ? value === 'true' : value;
   }
 
   function tabProbeUrl(tab, loc) {

@@ -113,6 +113,34 @@ describe('parseConfiguredTabs', () => {
       expect(tab).toMatchObject({ port: '443', path: '/tty1' });
     });
   });
+
+  describe('field order independence', () => {
+    // YAML mapping key order is never semantically significant, so a tabs[]
+    // item is just as valid with `url:`/`port:` listed before `name:`.
+    it('recognizes a tab whose first field is url, not name', () => {
+      const yaml = ['tabs:', '  - url: https://console.example.com/', '    name: Console'].join('\n');
+      expect(parseConfiguredTabs(yaml)).toEqual([{ url: 'https://console.example.com/', name: 'Console' }]);
+    });
+
+    it('recognizes a tab whose first field is port, not name', () => {
+      const yaml = ['tabs:', '  - port: 3000', '    path: /app', '    name: App'].join('\n');
+      expect(parseConfiguredTabs(yaml)).toEqual([{ port: '3000', path: '/app', name: 'App' }]);
+    });
+
+    it('still separates two name-less-first tabs into distinct entries', () => {
+      const yaml = [
+        'tabs:',
+        '  - url: https://one.example.com/',
+        '    name: One',
+        '  - url: https://two.example.com/',
+        '    name: Two',
+      ].join('\n');
+      expect(parseConfiguredTabs(yaml)).toEqual([
+        { url: 'https://one.example.com/', name: 'One' },
+        { url: 'https://two.example.com/', name: 'Two' },
+      ]);
+    });
+  });
 });
 
 describe('tabProbeUrl', () => {
