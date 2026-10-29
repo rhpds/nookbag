@@ -371,6 +371,13 @@
     return `${r.connect_ms}ms TCP connect to ${r.host}:${r.port}`;
   }
 
+  // Sentinel shown for any section whose check hasn't settled yet.
+  // buildReport() is called once immediately (everything pending) and
+  // again every time any individual check resolves -- see runDiagnostics()
+  // -- so the user sees results stream in instead of staring at a single
+  // "Running diagnostics…" message until the slowest check finishes.
+  const PENDING = '(running…)';
+
   function buildReport(state) {
     const { environment: env, pageLoadTiming: t, clockSkew: skew, throughput: tp, serverDiagnostics: sd } = state;
     const lines = [];
@@ -408,49 +415,75 @@
     lines.push('');
 
     lines.push('--- Clock Skew (browser vs. this server) ---');
-    lines.push(skew.available ? `Skew: ${skew.skewMs}ms (local - server)` : `Skew: ${skew.reason}`);
+    if (skew === null) {
+      lines.push(`Skew: ${PENDING}`);
+    } else {
+      lines.push(skew.available ? `Skew: ${skew.skewMs}ms (local - server)` : `Skew: ${skew.reason}`);
+    }
     lines.push('');
 
     lines.push(`--- Latency Probes (${SAMPLES_PER_TARGET} samples each, cache disabled) ---`);
-    state.sameOriginResults.forEach((r) => lines.push(formatLatencyRow(r)));
-    if (state.configuredTabResults.length > 0) {
+    if (state.sameOriginResults === null) {
+      lines.push(`  ${PENDING}`);
+    } else {
+      state.sameOriginResults.forEach((r) => lines.push(formatLatencyRow(r)));
+    }
+    if (state.configuredTabResults === null || state.configuredTabResults.length > 0) {
       lines.push('');
       lines.push('  Configured services (from ui-config.yml tabs):');
-      state.configuredTabResults.forEach((r) => lines.push(formatLatencyRow(r)));
+      if (state.configuredTabResults === null) {
+        lines.push(`  ${PENDING}`);
+      } else {
+        state.configuredTabResults.forEach((r) => lines.push(formatLatencyRow(r)));
+      }
     }
     lines.push('');
     lines.push('  Internet baseline (is it just my connection?):');
-    state.internetResults.forEach((r) => lines.push(formatLatencyRow(r)));
+    if (state.internetResults === null) {
+      lines.push(`  ${PENDING}`);
+    } else {
+      state.internetResults.forEach((r) => lines.push(formatLatencyRow(r)));
+    }
     lines.push('');
 
     lines.push('--- Throughput (approximate, single stream) ---');
-    lines.push(tp.available ? `~2MB download: ${tp.seconds}s -> ~${tp.approxMbps} Mbps` : `Throughput: ${tp.reason}`);
+    if (tp === null) {
+      lines.push(`Throughput: ${PENDING}`);
+    } else {
+      lines.push(
+        tp.available ? `~2MB download: ${tp.seconds}s -> ~${tp.approxMbps} Mbps` : `Throughput: ${tp.reason}`
+      );
+    }
     lines.push('');
 
     lines.push('--- Automation API (/runner/api/diagnostics) ---');
-    lines.push(`Round trip: ${sd.roundTripMs}ms`);
-    if (sd.available) {
-      const d = sd.data;
-      lines.push(`Uptime: ${d.uptime_seconds}s`);
-      lines.push(`CPU: ${formatCpu(d.cpu)}`);
-      lines.push(`Memory: ${formatMemory(d.memory)}`);
-      lines.push(
-        `Load average: ${
-          d.load_average && d.load_average.available
-            ? `${d.load_average.load_1m}, ${d.load_average.load_5m}, ${d.load_average.load_15m}`
-            : (d.load_average && d.load_average.reason) || 'not available'
-        }`
-      );
-      lines.push(`Disk: ${formatDisk(d.disk)}`);
-      lines.push(
-        `Job queue: ${
-          d.job_queue ? `${d.job_queue.active_jobs} active / ${d.job_queue.max_workers} workers` : 'not available'
-        }`
-      );
-      lines.push(`K8s API reachability: ${formatReachability(d.k8s_api)}`);
-      lines.push(`Bastion/VM reachability: ${formatReachability(d.bastion)}`);
+    if (sd === null) {
+      lines.push(`Round trip: ${PENDING}`);
     } else {
-      lines.push(`Error: ${sd.reason}`);
+      lines.push(`Round trip: ${sd.roundTripMs}ms`);
+      if (sd.available) {
+        const d = sd.data;
+        lines.push(`Uptime: ${d.uptime_seconds}s`);
+        lines.push(`CPU: ${formatCpu(d.cpu)}`);
+        lines.push(`Memory: ${formatMemory(d.memory)}`);
+        lines.push(
+          `Load average: ${
+            d.load_average && d.load_average.available
+              ? `${d.load_average.load_1m}, ${d.load_average.load_5m}, ${d.load_average.load_15m}`
+              : (d.load_average && d.load_average.reason) || 'not available'
+          }`
+        );
+        lines.push(`Disk: ${formatDisk(d.disk)}`);
+        lines.push(
+          `Job queue: ${
+            d.job_queue ? `${d.job_queue.active_jobs} active / ${d.job_queue.max_workers} workers` : 'not available'
+          }`
+        );
+        lines.push(`K8s API reachability: ${formatReachability(d.k8s_api)}`);
+        lines.push(`Bastion/VM reachability: ${formatReachability(d.bastion)}`);
+      } else {
+        lines.push(`Error: ${sd.reason}`);
+      }
     }
     lines.push('');
 
@@ -480,46 +513,92 @@
     return results.map((r) => (r.status === 'fulfilled' ? r.value : fallback));
   }
 
+  const PROBE_FALLBACK = { available: false, failures: SAMPLES_PER_TARGET, samples: SAMPLES_PER_TARGET };
+
+  /**
+   * Render the report from whatever is in `state` right now. Fields not
+   * yet settled are `null` (see buildReport()'s PENDING handling) -- this
+   * is deliberately called once immediately (before any check has
+   * resolved) and then again every time any individual check settles, so
+   * sections stream in as they become available instead of the user
+   * staring at a single "Running diagnostics…" message until the slowest
+   * check (often the ~2MB throughput sample, or a wedged service) finally
+   * finishes. A genuinely degraded network -- the exact scenario this
+   * page exists to diagnose -- is precisely when that would otherwise
+   * matter most.
+   */
+  function render(state) {
+    reportEl.textContent = buildReport(state);
+    reportEl.dataset.hasReport = 'true';
+  }
+
   async function runDiagnostics() {
     setRunning(true);
     setStatus('Running diagnostics…');
 
-    const environment = getEnvironmentInfo();
-    const pageLoadTiming = getPageLoadTiming();
+    const state = {
+      environment: getEnvironmentInfo(),
+      pageLoadTiming: getPageLoadTiming(),
+      clockSkew: null,
+      sameOriginResults: null,
+      configuredTabResults: null,
+      internetResults: null,
+      throughput: null,
+      serverDiagnostics: null,
+    };
+    render(state);
 
     try {
-      const [clockSkew, tabTargets] = await Promise.all([getClockSkew(), getConfiguredTabTargets()]);
+      const pending = [];
 
-      const [sameOriginResults, configuredTabResults, internetResults, throughput, serverDiagnostics] =
-        await Promise.all([
-          settleAll(
-            SAME_ORIGIN_TARGETS.map((t) => repeatedProbe(t.label, t.url, t.mode)),
-            { available: false, failures: SAMPLES_PER_TARGET, samples: SAMPLES_PER_TARGET }
-          ),
-          settleAll(
-            tabTargets.map((t) => repeatedProbe(t.label, t.url, t.mode)),
-            { available: false, failures: SAMPLES_PER_TARGET, samples: SAMPLES_PER_TARGET }
-          ),
-          settleAll(
-            INTERNET_BASELINE_TARGETS.map((t) => repeatedProbe(t.label, t.url, t.mode)),
-            { available: false, failures: SAMPLES_PER_TARGET, samples: SAMPLES_PER_TARGET }
-          ),
-          getThroughputSample(),
-          getServerDiagnostics(),
-        ]);
+      pending.push(
+        getClockSkew().then((v) => {
+          state.clockSkew = v;
+          render(state);
+        })
+      );
+      pending.push(
+        settleAll(SAME_ORIGIN_TARGETS.map((t) => repeatedProbe(t.label, t.url, t.mode)), PROBE_FALLBACK).then(
+          (v) => {
+            state.sameOriginResults = v;
+            render(state);
+          }
+        )
+      );
+      pending.push(
+        settleAll(INTERNET_BASELINE_TARGETS.map((t) => repeatedProbe(t.label, t.url, t.mode)), PROBE_FALLBACK).then(
+          (v) => {
+            state.internetResults = v;
+            render(state);
+          }
+        )
+      );
+      pending.push(
+        getThroughputSample().then((v) => {
+          state.throughput = v;
+          render(state);
+        })
+      );
+      pending.push(
+        getServerDiagnostics().then((v) => {
+          state.serverDiagnostics = v;
+          render(state);
+        })
+      );
+      // Configured-tab targets depend on first discovering tabs[] from
+      // ui-config.yml, so this one chains rather than starting the probes
+      // immediately -- it still renders independently of every other
+      // section above as soon as its own probes settle.
+      pending.push(
+        getConfiguredTabTargets()
+          .then((tabTargets) => settleAll(tabTargets.map((t) => repeatedProbe(t.label, t.url, t.mode)), PROBE_FALLBACK))
+          .then((v) => {
+            state.configuredTabResults = v;
+            render(state);
+          })
+      );
 
-      const report = buildReport({
-        environment,
-        pageLoadTiming,
-        clockSkew,
-        sameOriginResults,
-        configuredTabResults,
-        internetResults,
-        throughput,
-        serverDiagnostics,
-      });
-      reportEl.textContent = report;
-      reportEl.dataset.hasReport = 'true';
+      await Promise.all(pending);
       setStatus('Done. Click "Copy All" to copy the report.');
     } catch (err) {
       setStatus(`Diagnostics failed unexpectedly: ${err}`);
