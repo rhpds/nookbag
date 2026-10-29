@@ -4,7 +4,8 @@ This document describes the standalone network/cluster diagnostics page: what it
 
 - Source of truth:
   - `nookbag/src/public/diagnostics.html` (page shell)
-  - `nookbag/src/public/diagnostics.js` (all logic)
+  - `nookbag/src/public/diagnostics.js` (orchestration, probes, report rendering)
+  - `nookbag/src/public/diagnostics-tabs.js` (tabs[] config parsing/URL construction, exposed as `window.DiagnosticsTabs`; also unit tested directly from `src/diagnostics-tabs.test.ts`)
   - `nookbag/src/public/ping.txt` (same-origin latency probe target)
   - Companion server-side endpoint: `GET /api/diagnostics` in [zerotouch-automation](https://github.com/rhpds/zerotouch-automation), reachable here at `/runner/api/diagnostics`
 
@@ -24,12 +25,12 @@ The page auto-runs once on load (and can be re-run via the "Run Diagnostics" but
 4. **Repeated latency samples** (5x each, `cache: 'no-store'` so the browser cache can't fake a fast repeat, every fetch bounded by a timeout) against four categories, so a Slack reader can immediately see *where* the slowness is:
    - **This lab** — same-origin `./ping.txt`, via cluster ingress.
    - **Automation sidecar** — `/runner/health`.
-   - **Configured services** — every unique origin found in the already-loaded `ui-config.yml` / `zero-touch-config.yml` `tabs[]` (reusing the same URL-construction rules as `app.tsx`), labeled by tab name. This is what catches "the OpenShift console took a minute to load" — the console (or any other embedded service) is just another configured tab.
+   - **Configured services** — every unique origin found in the already-loaded `ui-config.yml` / `zero-touch-config.yml` `tabs[]` (reusing the same URL-construction rules as `app.tsx`, including `type:` presets like `terminal`/`codeserver`/`parasol`, and tolerant of `tabs[]` items regardless of which field is listed first), labeled by tab name. This is what catches "the OpenShift console took a minute to load" — the console (or any other embedded service, including a `type:`-only wetty/code-server tab) is just another configured tab.
    - **Internet baseline** — fixed, purpose-built connectivity-check endpoints (Cloudflare, Google, Red Hat) via `no-cors` GETs. If these are slow too but the lab's own targets are fast, the problem is the user's network, not ours.
 5. **A rough throughput sample** — one ~2MB download, to approximate Mbps and distinguish "hotel wifi" from "fiber." Single-stream, approximate — labeled as such in the report.
 6. **Server-side pod diagnostics** — one call to `/runner/api/diagnostics`, timed. Its own round-trip time is itself a useful "automation API latency" data point, and a timeout/failure here is reported as-is rather than swallowed. See the [zerotouch-automation README](https://github.com/rhpds/zerotouch-automation#api-endpoints) for the full response shape (cgroup CPU/memory pressure, load average, disk, job-queue backlog, and raw TCP-connect timing to the in-cluster API server and the lab's bastion/VM).
 
-All of the above assembles into one plain-text report (wrapped in a Slack code fence) rendered in a `<pre>` block. **Copy All** uses the Clipboard API first, falling back to a hidden-textarea `execCommand('copy')` — the fallback matters because `navigator.clipboard` is undefined in any non-secure (plain HTTP) context, not just old browsers, and some showroom deployments may be reached over HTTP.
+All of the above assembles into one plain-text report (wrapped in a Slack code fence) rendered in a `<pre>` block. Each check's section is (re-)rendered as soon as that individual check settles, independent of the others, rather than waiting for every check — including the slowest ones, like the throughput sample or a wedged service — before showing anything; a section not yet settled shows a `(running…)` placeholder in its place. **Copy All** stays disabled until every check has settled, and uses the Clipboard API first, falling back to a hidden-textarea `execCommand('copy')` — the fallback matters because `navigator.clipboard` is undefined in any non-secure (plain HTTP) context, not just old browsers, and some showroom deployments may be reached over HTTP.
 
 Every network call in the page is wrapped in a shared `fetchWithTimeout()` helper. A diagnostics tool that can itself hang forever on a slow/wedged request would defeat its own purpose — exactly the "cluster is slow" scenario it exists to diagnose — so nothing in this page can block indefinitely.
 
@@ -53,11 +54,15 @@ sequenceDiagram
     User->>Page: open /diagnostics.html
     Page->>Page: getEnvironmentInfo() + getPageLoadTiming()
 
+    Page->>Page: buildReport() with every section pending
+    Page-->>User: report rendered ("(running…)" placeholders)
+
     par Clock skew
         Page->>Lab: GET ./ping.txt
         Lab-->>Page: 200 + Date header
-        Page->>Page: compute clock skew
-    and Discover configured tabs
+        Page->>Page: compute clock skew, buildReport()
+        Page-->>User: Clock Skew section updated
+    and Discover configured tabs, then probe them
         Page->>Lab: GET ./ui-config.yml
         alt found
             Lab-->>Page: 200 + YAML
@@ -66,32 +71,35 @@ sequenceDiagram
             Lab-->>Page: 200 + YAML
         end
         Page->>Page: parseConfiguredTabs()
-    end
-
-    par This lab latency (5x, no cache)
-        loop 5 samples
-            Page->>Lab: GET ./ping.txt
-            Lab-->>Page: 200 or timeout
-        end
-    and Automation sidecar latency (5x)
-        loop 5 samples
-            Page->>Runner: GET /runner/health
-            Runner-->>Page: 200 or timeout
-        end
-    and Configured services latency (5x each)
         loop 5 samples per tab
             Page->>Tabs: fetch no-cors
             Tabs-->>Page: opaque response, timing only
         end
+        Page->>Page: buildReport()
+        Page-->>User: Configured services section updated
+    and This lab + automation sidecar latency (5x each, no cache)
+        loop 5 samples
+            Page->>Lab: GET ./ping.txt
+            Lab-->>Page: 200 or timeout
+        end
+        loop 5 samples
+            Page->>Runner: GET /runner/health
+            Runner-->>Page: 200 or timeout
+        end
+        Page->>Page: buildReport()
+        Page-->>User: This-lab section updated
     and Internet baseline latency (5x each)
         loop 5 samples per target
             Page->>Net: GET generate_204 no-cors
             Net-->>Page: opaque response, timing only
         end
+        Page->>Page: buildReport()
+        Page-->>User: Internet baseline section updated
     and Throughput sample
         Page->>Net: GET ~2MB test file
         Net-->>Page: payload
-        Page->>Page: compute approx Mbps
+        Page->>Page: compute approx Mbps, buildReport()
+        Page-->>User: Throughput section updated
     and Server-side pod diagnostics
         Page->>Runner: GET /runner/api/diagnostics
         Runner->>Runner: cgroup CPU/mem, load, disk, job queue
@@ -100,10 +108,11 @@ sequenceDiagram
         Runner->>Bastion: TCP connect, timed
         Bastion-->>Runner: connected, refused, or timeout
         Runner-->>Page: 200 JSON, pod facts
+        Page->>Page: buildReport()
+        Page-->>User: Automation API section updated
     end
 
-    Page->>Page: buildReport()
-    Page-->>User: report rendered, Copy All enabled
+    Page-->>User: all sections settled, Copy All enabled
 
     User->>Page: click Copy All
     alt secure context
