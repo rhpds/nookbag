@@ -7,6 +7,7 @@ vi.mock('unfetch', () => ({ default: (...args: unknown[]) => mockFetch(...args) 
 import {
   formatYamlError,
   getJobStatus,
+  getPollDelayMs,
   executeStage,
   executeStageAndGetStatus,
   silentFetcher,
@@ -45,6 +46,28 @@ describe('formatYamlError', () => {
     expect(out).toContain('Reason: Something bad');
     expect(out).toContain('1 | a: 1');
     expect(out).toContain('^');
+  });
+});
+
+describe('getPollDelayMs', () => {
+  it('uses a 250ms delay for the first 6 attempts', () => {
+    expect(getPollDelayMs(1)).toBe(250);
+    expect(getPollDelayMs(6)).toBe(250);
+  });
+
+  it('uses a 1s delay for attempts 7 through 12', () => {
+    expect(getPollDelayMs(7)).toBe(1_000);
+    expect(getPollDelayMs(12)).toBe(1_000);
+  });
+
+  it('ramps up exponentially (x1.5) starting at attempt 13', () => {
+    expect(getPollDelayMs(13)).toBe(1_500);
+    expect(getPollDelayMs(14)).toBe(2_250);
+  });
+
+  it('caps the backoff delay at 5 seconds', () => {
+    expect(getPollDelayMs(16)).toBe(5_000);
+    expect(getPollDelayMs(120)).toBe(5_000);
   });
 });
 

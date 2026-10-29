@@ -18,14 +18,27 @@ export type JobResult = {
   Debug?: { [filename: string]: string };
 };
 
+/**
+ * Delay before the next `getJobStatus` poll, given the attempt number that
+ * just completed (1-indexed). Three tiers:
+ *   - Attempts 1-6:  250ms   -- catch jobs finishing in well under 2s.
+ *   - Attempts 7-12: 1s      -- normal polling phase.
+ *   - Attempts 13+:  1.5x exponential backoff, capped at 5s -- for
+ *     longer-running playbooks, without hammering the API once a job is
+ *     clearly going to take a while.
+ */
+export function getPollDelayMs(attempt: number): number {
+  if (attempt <= 6) return 250;
+  if (attempt <= 12) return 1_000;
+  return Math.min(1_000 * Math.pow(1.5, attempt - 12), 5_000);
+}
+
 export async function getJobStatus(jobId: string): Promise<JobResult> {
   async function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
   const maxAttempts = 120;
   let attempt = 0;
-  // Fast initial polls (250ms) to catch quick jobs, then ramp to 1s, then
-  // exponential backoff capped at 5s for longer-running playbooks.
   while (attempt <= maxAttempts) {
     const response = await fetch(`${API_PATH}/job/${jobId}`);
     const data = await response.json();
@@ -35,8 +48,7 @@ export async function getJobStatus(jobId: string): Promise<JobResult> {
     }
     attempt += 1;
     if (attempt > maxAttempts) break;
-    const delayMs = attempt <= 6 ? 250 : attempt <= 12 ? 1_000 : Math.min(1_000 * Math.pow(1.5, attempt - 12), 5_000);
-    await sleep(delayMs);
+    await sleep(getPollDelayMs(attempt));
   }
   return Promise.resolve({ Status: 'failed', Output: 'Job status polling timed out' });
 }
