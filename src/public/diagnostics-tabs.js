@@ -29,13 +29,32 @@
     return s.replace(/^['"]|['"]$/g, '');
   }
 
+  // Mirrors the `type:` preset switch in src/app.tsx's createUrlsFromVars()
+  // -- see docs/UI-CONFIG.md's "Terminal presets via type" section. Preset
+  // values win over any explicitly provided port/path, same as app.tsx.
+  const TYPE_PRESETS = {
+    'double-terminal': { port: '443', path: '/tty-top', secondary_port: '443', secondary_path: '/tty-bottom' },
+    terminal: { port: '443', path: '/tty1' },
+    'secondary-terminal': { port: '443', path: '/tty2' },
+    codeserver: { port: '8443', path: '/' },
+    parasol: { port: '8005', path: '/' },
+  };
+
+  function applyTypePreset(tab) {
+    const preset = tab.type ? TYPE_PRESETS[tab.type] : null;
+    return preset ? Object.assign({}, tab, preset) : tab;
+  }
+
   /**
    * Deliberately minimal, NOT a general YAML parser: extracts only the
    * small, flat `tabs:` list shape nookbag's own config schema actually
    * uses (see docs/UI-CONFIG.md / src/config-schema.ts) -- `- name:` items
-   * with plain `url:`/`port:`/`path:`/`external:` fields, no nested
-   * mappings. Any config that doesn't match this shape just yields fewer
-   * probe targets; it never throws (callers still wrap this defensively).
+   * with plain `url:`/`port:`/`path:`/`external:`/`type:` fields, no
+   * nested mappings. `type:` presets (terminal/codeserver/parasol/etc.) are
+   * expanded via applyTypePreset() so tabs that only specify `type:` (no
+   * explicit port/path) are still probeable. Any config that doesn't match
+   * this shape just yields fewer probe targets; it never throws (callers
+   * still wrap this defensively).
    */
   function parseConfiguredTabs(yamlText) {
     const lines = yamlText.split(/\r?\n/);
@@ -44,8 +63,10 @@
     let current = null;
 
     function flush() {
-      if (current && (current.url || (current.port && current.path))) {
-        tabs.push(current);
+      if (!current) return;
+      const resolved = applyTypePreset(current);
+      if (resolved.url || (resolved.port && resolved.path)) {
+        tabs.push(resolved);
       }
       current = null;
     }
@@ -78,7 +99,7 @@
 
       if (!current) continue;
 
-      const fieldMatch = /^(url|port|path|external)\s*:\s*(.+)$/.exec(trimmed);
+      const fieldMatch = /^(url|port|path|external|type)\s*:\s*(.+)$/.exec(trimmed);
       if (fieldMatch) {
         const [, key, rawValue] = fieldMatch;
         const value = stripQuotes(rawValue.trim());

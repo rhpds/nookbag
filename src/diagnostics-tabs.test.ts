@@ -76,6 +76,43 @@ describe('parseConfiguredTabs', () => {
   it('returns an empty array for an empty string', () => {
     expect(parseConfiguredTabs('')).toEqual([]);
   });
+
+  describe('type: presets', () => {
+    // Mirrors src/app.tsx's createUrlsFromVars() switch on vars.type --
+    // see docs/UI-CONFIG.md's "Terminal presets via type" section. A tab
+    // declared with only `type:` (the documented shorthand, no explicit
+    // port/path) must still resolve to a probeable port+path pair;
+    // otherwise it's silently invisible to the diagnostics page.
+    it.each([
+      ['terminal', { port: '443', path: '/tty1' }],
+      ['secondary-terminal', { port: '443', path: '/tty2' }],
+      ['codeserver', { port: '8443', path: '/' }],
+      ['parasol', { port: '8005', path: '/' }],
+    ])('resolves type: %s to port+path', (type, expected) => {
+      const yaml = ['tabs:', '  - name: Terminal', `    type: ${type}`].join('\n');
+      const [tab] = parseConfiguredTabs(yaml);
+      expect(tab).toMatchObject(expected);
+    });
+
+    it('resolves double-terminal to primary and secondary port+path', () => {
+      const yaml = ['tabs:', '  - name: Double Terminal', '    type: double-terminal'].join('\n');
+      const [tab] = parseConfiguredTabs(yaml);
+      expect(tab).toMatchObject({
+        port: '443',
+        path: '/tty-top',
+        secondary_port: '443',
+        secondary_path: '/tty-bottom',
+      });
+    });
+
+    it('lets a type preset win over an explicitly provided port/path, matching app.tsx', () => {
+      const yaml = ['tabs:', '  - name: Terminal', '    type: terminal', '    port: 9999', '    path: /custom'].join(
+        '\n'
+      );
+      const [tab] = parseConfiguredTabs(yaml);
+      expect(tab).toMatchObject({ port: '443', path: '/tty1' });
+    });
+  });
 });
 
 describe('tabProbeUrl', () => {
