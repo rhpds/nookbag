@@ -3,10 +3,12 @@
  *
  * Deliberately plain, dependency-free JS (no build step, no React, no
  * ui-config.yml parsing dependency beyond a best-effort tab-origin
- * extraction below) so this page keeps working even if the main app's
- * config loading or the automation API is totally broken -- see
+ * extraction in diagnostics-tabs.js) so this page keeps working even if the
+ * main app's config loading or the automation API is totally broken -- see
  * src/public/placeholder.html for the same "standalone static page"
- * pattern this follows.
+ * pattern this follows. Loaded alongside diagnostics-tabs.js (see
+ * diagnostics.html), which must be loaded first since this file reads
+ * `window.DiagnosticsTabs`.
  *
  * Uses async/await throughout: this already depends on fetch/
  * AbortController/Promise.all, which require the same modern-browser
@@ -247,77 +249,10 @@
     return null;
   }
 
-  function stripQuotes(s) {
-    return s.replace(/^['"]|['"]$/g, '');
-  }
-
-  /**
-   * Deliberately minimal, NOT a general YAML parser: extracts only the
-   * small, flat `tabs:` list shape nookbag's own config schema actually
-   * uses (see docs/UI-CONFIG.md / src/config-schema.ts) -- `- name:` items
-   * with plain `url:`/`port:`/`path:`/`external:` fields, no nested
-   * mappings. Any config that doesn't match this shape just yields fewer
-   * probe targets; it never throws (callers still wrap this defensively).
-   */
-  function parseConfiguredTabs(yamlText) {
-    const lines = yamlText.split(/\r?\n/);
-    const tabs = [];
-    let inTabs = false;
-    let current = null;
-
-    function flush() {
-      if (current && (current.url || (current.port && current.path))) {
-        tabs.push(current);
-      }
-      current = null;
-    }
-
-    for (const rawLine of lines) {
-      const line = rawLine.replace(/\s+$/, '');
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.charAt(0) === '#') continue;
-
-      const indent = line.length - line.replace(/^\s+/, '').length;
-
-      if (indent === 0) {
-        if (/^tabs\s*:/.test(trimmed)) {
-          inTabs = true;
-        } else {
-          if (inTabs) flush();
-          inTabs = false;
-        }
-        continue;
-      }
-
-      if (!inTabs) continue;
-
-      const itemMatch = /^-\s*name\s*:\s*(.+)$/.exec(trimmed);
-      if (itemMatch) {
-        flush();
-        current = { name: stripQuotes(itemMatch[1].trim()) };
-        continue;
-      }
-
-      if (!current) continue;
-
-      const fieldMatch = /^(url|port|path|external)\s*:\s*(.+)$/.exec(trimmed);
-      if (fieldMatch) {
-        const [, key, rawValue] = fieldMatch;
-        const value = stripQuotes(rawValue.trim());
-        current[key] = key === 'external' ? value === 'true' : value;
-      }
-    }
-    flush();
-    return tabs;
-  }
-
-  function tabProbeUrl(tab) {
-    if (tab.url) return tab.url;
-    if (tab.port && tab.path) {
-      return `${window.location.protocol}//${window.location.hostname}:${tab.port}${tab.path}`;
-    }
-    return null;
-  }
+  // Tab-config parsing/URL-construction lives in diagnostics-tabs.js
+  // (loaded immediately before this script, see diagnostics.html) so it can
+  // be unit tested directly -- see that file for parser details.
+  const { parseConfiguredTabs, tabProbeUrl } = window.DiagnosticsTabs;
 
   async function getConfiguredTabTargets() {
     const text = await fetchConfigText();
