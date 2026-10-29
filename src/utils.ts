@@ -37,6 +37,11 @@ export async function getJobStatus(jobId: string): Promise<JobResult> {
   async function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
+  // ~9 minutes worst case (sum of getPollDelayMs(1..120), excluding fetch
+  // round-trip time): 6*250ms + 6*1_000ms + the attempt-13+ 1.5x ramp up to
+  // the 5s cap + the remaining attempts at 5s each. If either maxAttempts
+  // or getPollDelayMs's tiers/cap change, re-derive this bound so it stays
+  // accurate -- nothing enforces it automatically.
   const maxAttempts = 120;
   let attempt = 0;
   while (attempt <= maxAttempts) {
