@@ -107,12 +107,85 @@ describe('getJobStatus', () => {
 
     const promise = getJobStatus('job-3');
 
-    await vi.advanceTimersByTimeAsync(1000); // first backoff
-    await vi.advanceTimersByTimeAsync(2000); // second backoff (doubled)
+    // Two fast-tier (250ms) delays between the three polls above.
+    await vi.advanceTimersByTimeAsync(getPollDelayMs(1));
+    await vi.advanceTimersByTimeAsync(getPollDelayMs(2));
 
     const result = await promise;
     expect(result.Status).toBe('successful');
     expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('polls at exactly 250ms during the fast tier (attempts 1-6), not before', async () => {
+    mockFetch
+      .mockResolvedValueOnce({ json: () => Promise.resolve({ Status: 'running' }) })
+      .mockResolvedValueOnce({ json: () => Promise.resolve({ Status: 'successful' }) });
+
+    const promise = getJobStatus('job-fast-tier');
+    // The first check fires synchronously -- no delay before it.
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(249);
+    expect(mockFetch).toHaveBeenCalledTimes(1); // not yet -- would have fired by now under the old 1s/2s/4s backoff
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(mockFetch).toHaveBeenCalledTimes(2); // fires at exactly 250ms
+
+    await promise;
+  });
+
+  it('switches to a 1s delay once past the fast tier (attempt 7 onward)', async () => {
+    let calls = 0;
+    mockFetch.mockImplementation(() => {
+      calls += 1;
+      const Status = calls >= 8 ? 'successful' : 'running';
+      return Promise.resolve({ json: () => Promise.resolve({ Status }) });
+    });
+
+    const promise = getJobStatus('job-mid-tier');
+
+    // Sum of the six fast-tier (250ms) delays between attempts 1-6 lands
+    // exactly on the 7th fetch call.
+    const throughFastTier = [1, 2, 3, 4, 5, 6].reduce((sum, a) => sum + getPollDelayMs(a), 0);
+    await vi.advanceTimersByTimeAsync(throughFastTier);
+    expect(calls).toBe(7);
+
+    // The next delay (attempt 7) should be 1s, not another 250ms.
+    await vi.advanceTimersByTimeAsync(getPollDelayMs(7) - 1);
+    expect(calls).toBe(7);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(calls).toBe(8);
+
+    const result = await promise;
+    expect(result.Status).toBe('successful');
+  });
+
+  it('caps the backoff delay at 5 seconds (not 10) once in the exponential tier', async () => {
+    let calls = 0;
+    mockFetch.mockImplementation(() => {
+      calls += 1;
+      const Status = calls >= 17 ? 'successful' : 'running';
+      return Promise.resolve({ json: () => Promise.resolve({ Status }) });
+    });
+
+    const promise = getJobStatus('job-backoff-cap');
+
+    // Cumulative delay for attempts 1-15 lands exactly on the 16th fetch
+    // call; attempt 16's delay (getPollDelayMs(16) === 5_000) should
+    // already be capped at this point.
+    const through15 = Array.from({ length: 15 }, (_, i) => i + 1).reduce((sum, a) => sum + getPollDelayMs(a), 0);
+    await vi.advanceTimersByTimeAsync(through15);
+    expect(calls).toBe(16);
+    expect(getPollDelayMs(16)).toBe(5_000);
+
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(calls).toBe(16); // the real 5s cap hasn't elapsed yet
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(calls).toBe(17); // fires at exactly 5s, confirming the cap is 5s, not the old 10s
+
+    const result = await promise;
+    expect(result.Status).toBe('successful');
   });
 
   it('times out after maxAttempts and returns failed', async () => {
@@ -129,27 +202,10 @@ describe('getJobStatus', () => {
     const result = await promise;
     expect(result.Status).toBe('failed');
     expect(result.Output).toContain('timed out');
-  });
-
-  it('caps backoff delay at 10 seconds', async () => {
-    mockFetch
-      .mockResolvedValueOnce({ json: () => Promise.resolve({ Status: 'running' }) })
-      .mockResolvedValueOnce({ json: () => Promise.resolve({ Status: 'running' }) })
-      .mockResolvedValueOnce({ json: () => Promise.resolve({ Status: 'running' }) })
-      .mockResolvedValueOnce({ json: () => Promise.resolve({ Status: 'running' }) })
-      .mockResolvedValueOnce({ json: () => Promise.resolve({ Status: 'running' }) })
-      .mockResolvedValueOnce({ json: () => Promise.resolve({ Status: 'successful' }) });
-
-    const promise = getJobStatus('job-backoff');
-
-    await vi.advanceTimersByTimeAsync(1000);
-    await vi.advanceTimersByTimeAsync(2000);
-    await vi.advanceTimersByTimeAsync(4000);
-    await vi.advanceTimersByTimeAsync(8000);
-    await vi.advanceTimersByTimeAsync(10000);
-
-    const result = await promise;
-    expect(result.Status).toBe('successful');
+    // 1 initial check + 120 retries -- pins down maxAttempts so a future
+    // change to it (without updating the "~9 minute" budget comment next
+    // to it) shows up here.
+    expect(mockFetch).toHaveBeenCalledTimes(121);
   });
 });
 
