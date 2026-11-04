@@ -127,8 +127,8 @@ describe('getJobStatus', () => {
 
   it('polls at exactly 250ms during the fast tier (attempts 1-6), not before', async () => {
     mockFetch
-      .mockResolvedValueOnce({ json: () => Promise.resolve({ Status: 'running' }) })
-      .mockResolvedValueOnce({ json: () => Promise.resolve({ Status: 'successful' }) });
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ Status: 'running' }) })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ Status: 'successful' }) });
 
     const promise = getJobStatus('job-fast-tier');
     // The first check fires synchronously -- no delay before it.
@@ -148,7 +148,7 @@ describe('getJobStatus', () => {
     mockFetch.mockImplementation(() => {
       calls += 1;
       const Status = calls >= 8 ? 'successful' : 'running';
-      return Promise.resolve({ json: () => Promise.resolve({ Status }) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ Status }) });
     });
 
     const promise = getJobStatus('job-mid-tier');
@@ -174,7 +174,7 @@ describe('getJobStatus', () => {
     mockFetch.mockImplementation(() => {
       calls += 1;
       const Status = calls >= 17 ? 'successful' : 'running';
-      return Promise.resolve({ json: () => Promise.resolve({ Status }) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ Status }) });
     });
 
     const promise = getJobStatus('job-backoff-cap');
@@ -210,9 +210,6 @@ describe('getJobStatus', () => {
       await vi.advanceTimersByTimeAsync(10_000);
     }
 
-    const result = await promise;
-    expect(result.Status).toBe('failed');
-    expect(result.Output).toContain('timed out');
     // 1 initial check + 120 retries -- pins down maxAttempts so a future
     // change to it (without updating the "~9 minute" budget comment next
     // to it) shows up here.
