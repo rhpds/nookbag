@@ -933,6 +933,20 @@ describe('UI Config Integration Tests', () => {
         expect(screen.queryByText(/HTTP 500/)).not.toBeInTheDocument();
       });
 
+      it('shows an automation error, not a validation error, when polling times out', async () => {
+        mockConfig(devModeAutomationConfig);
+        mockExecuteStageAndGetStatus.mockRejectedValue(new Error('Job status polling timed out'));
+
+        render(<TestWrapper><App /></TestWrapper>);
+        await waitFor(() => expect(screen.getByText('Next')).toBeInTheDocument());
+        fireEvent.click(screen.getByText('Next'));
+
+        await waitFor(() => expect(screen.getByText(AUTOMATION_ERROR_MESSAGE)).toBeInTheDocument());
+        expect(screen.getByText('Lab automation error')).toBeInTheDocument();
+        expect(screen.queryByText('Validation Error')).not.toBeInTheDocument();
+        expect(screen.queryByText(/polling timed out/)).not.toBeInTheDocument();
+      });
+
       it('shows the fallback for a solve failure without an output message', async () => {
         mockConfig(devModeAutomationConfig.replace("scripts: ['setup', 'validation']", "scripts: ['setup', 'validation', 'solve']"));
         mockExecuteStageAndGetStatus.mockResolvedValue({ Status: 'failed' });

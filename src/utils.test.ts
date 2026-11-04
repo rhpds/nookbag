@@ -83,6 +83,7 @@ describe('getJobStatus', () => {
 
   it('resolves immediately when first poll returns successful', async () => {
     mockFetch.mockResolvedValueOnce({
+      ok: true,
       json: () => Promise.resolve({ Status: 'successful', Output: 'done' }),
     });
 
@@ -92,6 +93,7 @@ describe('getJobStatus', () => {
 
   it('resolves on failed status', async () => {
     mockFetch.mockResolvedValueOnce({
+      ok: true,
       json: () => Promise.resolve({ Status: 'failed', Output: 'error msg' }),
     });
 
@@ -108,9 +110,9 @@ describe('getJobStatus', () => {
 
   it('polls until non-terminal status transitions to successful', async () => {
     mockFetch
-      .mockResolvedValueOnce({ json: () => Promise.resolve({ Status: 'running' }) })
-      .mockResolvedValueOnce({ json: () => Promise.resolve({ Status: 'scheduled' }) })
-      .mockResolvedValueOnce({ json: () => Promise.resolve({ Status: 'successful' }) });
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ Status: 'running' }) })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ Status: 'scheduled' }) })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ Status: 'successful' }) });
 
     const promise = getJobStatus('job-3');
 
@@ -195,12 +197,14 @@ describe('getJobStatus', () => {
     expect(result.Status).toBe('successful');
   });
 
-  it('times out after maxAttempts and returns failed', async () => {
+  it('times out after maxAttempts with an operational error, not validation output', async () => {
     mockFetch.mockResolvedValue({
+      ok: true,
       json: () => Promise.resolve({ Status: 'running' }),
     });
 
     const promise = getJobStatus('job-timeout');
+    const rejection = expect(promise).rejects.toThrow('Job status polling timed out');
 
     for (let i = 0; i < 65; i++) {
       await vi.advanceTimersByTimeAsync(10_000);
@@ -213,6 +217,28 @@ describe('getJobStatus', () => {
     // change to it (without updating the "~9 minute" budget comment next
     // to it) shows up here.
     expect(mockFetch).toHaveBeenCalledTimes(121);
+    await rejection;
+  });
+
+  it('caps backoff delay at 10 seconds', async () => {
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ Status: 'running' }) })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ Status: 'running' }) })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ Status: 'running' }) })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ Status: 'running' }) })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ Status: 'running' }) })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ Status: 'successful' }) });
+
+    const promise = getJobStatus('job-backoff');
+
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(2000);
+    await vi.advanceTimersByTimeAsync(4000);
+    await vi.advanceTimersByTimeAsync(8000);
+    await vi.advanceTimersByTimeAsync(10000);
+
+    const result = await promise;
+    expect(result.Status).toBe('successful');
   });
 });
 
@@ -275,6 +301,7 @@ describe('executeStageAndGetStatus', () => {
         json: () => Promise.resolve({ Job_id: 'job-xyz' }),
       })
       .mockResolvedValueOnce({
+        ok: true,
         json: () => Promise.resolve({ Status: 'successful', Output: 'all good' }),
       });
 

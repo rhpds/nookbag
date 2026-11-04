@@ -49,7 +49,7 @@ export async function getJobStatus(jobId: string): Promise<JobResult> {
   let attempt = 0;
   while (attempt <= maxAttempts) {
     const response = await fetch(`${API_PATH}/job/${jobId}`);
-    if (!response.ok && response.status !== undefined) {
+    if (!response.ok) {
       throw new Error(`Job status request failed (HTTP ${response.status})`);
     }
     const data = await response.json();
@@ -61,7 +61,7 @@ export async function getJobStatus(jobId: string): Promise<JobResult> {
     if (attempt > maxAttempts) break;
     await sleep(getPollDelayMs(attempt));
   }
-  return Promise.resolve({ Status: 'failed', Output: 'Job status polling timed out' });
+  throw new Error('Job status polling timed out');
 }
 
 export async function executeStage(moduleName: string, stage: Step): Promise<string | null> {
