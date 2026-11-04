@@ -33,6 +33,9 @@ export function getPollDelayMs(attempt: number): number {
   return Math.min(1_000 * Math.pow(1.5, attempt - 12), 5_000);
 }
 
+export const AUTOMATION_ERROR_MESSAGE =
+  'The lab automation encountered an error, so we could not check your work. This may be a lab setup or infrastructure issue, not a problem with your work. Please try again or contact support.';
+
 export async function getJobStatus(jobId: string): Promise<JobResult> {
   async function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -46,6 +49,9 @@ export async function getJobStatus(jobId: string): Promise<JobResult> {
   let attempt = 0;
   while (attempt <= maxAttempts) {
     const response = await fetch(`${API_PATH}/job/${jobId}`);
+    if (!response.ok && response.status !== undefined) {
+      throw new Error(`Job status request failed (HTTP ${response.status})`);
+    }
     const data = await response.json();
     const status = data['Status'];
     if (status && status !== 'scheduled' && status !== 'running') {
@@ -60,11 +66,17 @@ export async function getJobStatus(jobId: string): Promise<JobResult> {
 
 export async function executeStage(moduleName: string, stage: Step): Promise<string | null> {
   const response = await fetch(`${API_PATH}/${moduleName}/${stage}`, { method: 'POST' });
-  if (!response.ok) {
+  if (response.status === 404) {
     return null;
   }
+  if (!response.ok) {
+    throw new Error(`Automation request failed (HTTP ${response.status})`);
+  }
   const data = await response.json();
-  return data['Job_id'] ?? null;
+  if (!data['Job_id']) {
+    throw new Error('Automation request did not return a job ID');
+  }
+  return data['Job_id'];
 }
 
 export async function executeStageAndGetStatus(

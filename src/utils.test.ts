@@ -99,6 +99,13 @@ describe('getJobStatus', () => {
     expect(result).toEqual({ Status: 'failed', Output: 'error msg' });
   });
 
+  it('rejects an HTTP failure instead of polling indefinitely', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 500 });
+
+    await expect(getJobStatus('job-500')).rejects.toThrow('Job status request failed (HTTP 500)');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
   it('polls until non-terminal status transitions to successful', async () => {
     mockFetch
       .mockResolvedValueOnce({ json: () => Promise.resolve({ Status: 'running' }) })
@@ -235,14 +242,19 @@ describe('executeStage', () => {
     expect(result).toBeNull();
   });
 
-  it('returns null when response has no Job_id field', async () => {
+  it('throws on a server error rather than treating it as a missing script', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 500 });
+
+    await expect(executeStage('module-01', 'validation')).rejects.toThrow('Automation request failed (HTTP 500)');
+  });
+
+  it('throws when a successful response has no Job_id field', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve({}),
     });
 
-    const result = await executeStage('module-01', 'validation');
-    expect(result).toBeNull();
+    await expect(executeStage('module-01', 'validation')).rejects.toThrow('Automation request did not return a job ID');
   });
 });
 

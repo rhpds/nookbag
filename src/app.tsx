@@ -17,7 +17,7 @@ import {
 import Split from 'react-split';
 import { ForwardIcon, RedoIcon } from '@patternfly/react-icons';
 import ProgressHeader from './progress-header';
-import { executeStageAndGetStatus, API_CONFIG, configFetcher, exitLab, completeLab, formatYamlError, getParentOrigin } from './utils';
+import { executeStageAndGetStatus, API_CONFIG, AUTOMATION_ERROR_MESSAGE, configFetcher, exitLab, completeLab, formatYamlError, getParentOrigin } from './utils';
 import Loading from './loading';
 import ViewSwitcher, { ViewMode, AutomationMode, AutomationLogEntry } from './view-switcher';
 import { ConfigSchema, TConfig, TTab } from './config-schema';
@@ -338,6 +338,15 @@ export default function () {
     setAutomationLog((prev) => prev.map((entry) => (entry.id === id ? { ...entry, status, output, jobLog } : entry)));
   }
 
+  function showAutomationFailure(output?: string) {
+    const validationMessage = output?.trim();
+    setValidationMsg({
+      message: validationMessage ? output! : AUTOMATION_ERROR_MESSAGE,
+      title: validationMessage ? 'Validation Error' : 'Lab automation error',
+      type: 'danger',
+    });
+  }
+
   const showTabsBar =
     (tabs.length > 1 || tabs.some((t) => t.secondary_name)) && (isBasicShowroom || modules.length > 0);
   const moduleTabs = tabs.filter((t) => {
@@ -623,25 +632,29 @@ export default function () {
     // Normal mode: block navigation on the validation result, as before.
     const logId = startAutomationLogEntry(moduleName, 'validation', effectiveAutomationMode);
     setLoaderStatus({ isLoading: true, stage: 'validation' });
-    const executeStageAndGetStatusPromise = executeStageAndGetStatus(moduleName, 'validation');
-    const minTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 500));
-    const [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
-    resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output, res.Debug?.['ansible_runner.stdout']);
-    if (res.Status === 'successful') {
-      // Clear loader immediately on successful validation to avoid getting stuck
+    try {
+      const executeStageAndGetStatusPromise = executeStageAndGetStatus(moduleName, 'validation');
+      const minTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 500));
+      const [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
+      resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output, res.Debug?.['ansible_runner.stdout']);
       setLoaderStatus({ isLoading: false, stage: null });
-      advanceOrComplete();
-    } else {
+      if (res.Status === 'successful') {
+        advanceOrComplete();
+      } else {
+        showAutomationFailure(res.Output);
+      }
+    } catch (err) {
+      resolveAutomationLogEntry(logId, 'failed', err instanceof Error ? err.message : String(err));
       setLoaderStatus({ isLoading: false, stage: null });
-      setValidationMsg({ message: res.Output || '', title: 'Validation Error', type: 'danger' });
+      showAutomationFailure();
     }
   }
 
-  async function executeSolve() {
+  async function executeSolve(): Promise<boolean> {
     window.parent.postMessage({ type: 'ANALYTICS', linkType: 'cta', text: 'Solve', category: 'Lab|Step navigation' }, getParentOrigin());
 
     if (!isScriptAvailable(modules[currIndex], 'solve') || effectiveAutomationMode === 'disabled') {
-      return;
+      return true;
     }
 
     const moduleName = modules[currIndex].name;
@@ -660,26 +673,34 @@ export default function () {
           resolveAutomationLogEntry(logId, 'failed', err?.message ?? String(err));
           console.warn(`[nookbag] solve error for "${moduleName}" (background mode, ignored):`, err);
         });
-      return;
+      return true;
     }
 
     const logId = startAutomationLogEntry(moduleName, 'solve', effectiveAutomationMode);
     setLoaderStatus({ isLoading: true, stage: 'solve' });
-    const executeStageAndGetStatusPromise = executeStageAndGetStatus(moduleName, 'solve');
-    const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
-    const [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
-    resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output, res.Debug?.['ansible_runner.stdout']);
-    if (res.Status === 'successful') {
+    try {
+      const executeStageAndGetStatusPromise = executeStageAndGetStatus(moduleName, 'solve');
+      const minTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 500));
+      const [res] = await Promise.all([executeStageAndGetStatusPromise, minTimeout]);
+      resolveAutomationLogEntry(logId, res.Status === 'failed' ? 'failed' : 'successful', res.Output, res.Debug?.['ansible_runner.stdout']);
       setLoaderStatus({ isLoading: false, stage: null });
-    } else {
+      if (res.Status !== 'successful') {
+        showAutomationFailure(res.Output);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      resolveAutomationLogEntry(logId, 'failed', err instanceof Error ? err.message : String(err));
       setLoaderStatus({ isLoading: false, stage: null });
-      setValidationMsg({ message: res.Output || '', title: 'Validation Error', type: 'danger' });
+      showAutomationFailure();
+      return false;
     }
   }
 
   async function skipModule() {
-    await executeSolve();
-    await handleNext();
+    if (await executeSolve()) {
+      await handleNext();
+    }
   }
 
   function exitWarning() {
