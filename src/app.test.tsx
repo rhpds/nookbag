@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import App from './app';
 import useSWR from 'swr/immutable';
 import { ErrorBoundary } from 'react-error-boundary';
-import { executeStageAndGetStatus } from './utils';
+import { AUTOMATION_ERROR_MESSAGE, executeStageAndGetStatus } from './utils';
 // Import test configurations
 import terminalConfig from './test-configs/terminal-config.yml?raw';
 import externalLinksConfig from './test-configs/external-links-config.yml?raw';
@@ -878,6 +878,102 @@ describe('UI Config Integration Tests', () => {
         fireEvent.pointerUp(trigger, { pointerId: 1 });
         fireEvent.click(screen.getByText(label));
       }
+
+      it('shows the developer validation message when the runner supplies one', async () => {
+        mockConfig(devModeAutomationConfig);
+        mockExecuteStageAndGetStatus.mockResolvedValue({ Status: 'failed', Output: 'Finish configuring the server.' });
+
+        render(<TestWrapper><App /></TestWrapper>);
+        await waitFor(() => expect(screen.getByText('Next')).toBeInTheDocument());
+        fireEvent.click(screen.getByText('Next'));
+
+        await waitFor(() => expect(screen.getByText('Finish configuring the server.')).toBeInTheDocument());
+        expect(screen.getByText('Validation Error')).toBeInTheDocument();
+        expect(screen.queryByText(AUTOMATION_ERROR_MESSAGE)).not.toBeInTheDocument();
+      });
+
+      it('shows a safe fallback when the runner fails without a validation message', async () => {
+        mockConfig(devModeAutomationConfig);
+        mockExecuteStageAndGetStatus.mockResolvedValue({
+          Status: 'failed',
+          Debug: { 'ansible_runner.stdout': 'ssh: Could not resolve hostname rhel: Name or service not known' },
+        });
+
+        render(<TestWrapper><App /></TestWrapper>);
+        await waitFor(() => expect(screen.getByText('Next')).toBeInTheDocument());
+        fireEvent.click(screen.getByText('Next'));
+
+        await waitFor(() => expect(screen.getByText(AUTOMATION_ERROR_MESSAGE)).toBeInTheDocument());
+        expect(screen.getByText('Lab automation error')).toBeInTheDocument();
+        expect(screen.queryByText(/Could not resolve hostname/)).not.toBeInTheDocument();
+        expect((document.querySelector('iframe.app__instructions') as HTMLIFrameElement).getAttribute('src')).toContain('module-one');
+      });
+
+      it('shows the fallback even when a failed job has no output or debug data', async () => {
+        mockConfig(devModeAutomationConfig);
+        mockExecuteStageAndGetStatus.mockResolvedValue({ Status: 'failed' });
+
+        render(<TestWrapper><App /></TestWrapper>);
+        await waitFor(() => expect(screen.getByText('Next')).toBeInTheDocument());
+        fireEvent.click(screen.getByText('Next'));
+
+        await waitFor(() => expect(screen.getByText(AUTOMATION_ERROR_MESSAGE)).toBeInTheDocument());
+      });
+
+      it('clears the loader and shows the fallback when the runner request rejects', async () => {
+        mockConfig(devModeAutomationConfig);
+        mockExecuteStageAndGetStatus.mockRejectedValue(new Error('Job status request failed (HTTP 500)'));
+
+        render(<TestWrapper><App /></TestWrapper>);
+        await waitFor(() => expect(screen.getByText('Next')).toBeInTheDocument());
+        fireEvent.click(screen.getByText('Next'));
+
+        await waitFor(() => expect(screen.getByText(AUTOMATION_ERROR_MESSAGE)).toBeInTheDocument());
+        expect(screen.queryByText('Validating... standby.')).not.toBeInTheDocument();
+        expect(screen.queryByText(/HTTP 500/)).not.toBeInTheDocument();
+      });
+
+      it('shows an automation error, not a validation error, when polling times out', async () => {
+        mockConfig(devModeAutomationConfig);
+        mockExecuteStageAndGetStatus.mockRejectedValue(new Error('Job status polling timed out'));
+
+        render(<TestWrapper><App /></TestWrapper>);
+        await waitFor(() => expect(screen.getByText('Next')).toBeInTheDocument());
+        fireEvent.click(screen.getByText('Next'));
+
+        await waitFor(() => expect(screen.getByText(AUTOMATION_ERROR_MESSAGE)).toBeInTheDocument());
+        expect(screen.getByText('Lab automation error')).toBeInTheDocument();
+        expect(screen.queryByText('Validation Error')).not.toBeInTheDocument();
+        expect(screen.queryByText(/polling timed out/)).not.toBeInTheDocument();
+      });
+
+      it('shows the fallback for a solve failure without an output message', async () => {
+        mockConfig(devModeAutomationConfig.replace("scripts: ['setup', 'validation']", "scripts: ['setup', 'validation', 'solve']"));
+        mockExecuteStageAndGetStatus.mockResolvedValue({ Status: 'failed' });
+
+        render(<TestWrapper><App /></TestWrapper>);
+        await waitFor(() => expect(screen.getByText('Solve')).toBeInTheDocument());
+        fireEvent.click(screen.getByText('Solve'));
+
+        await waitFor(() => expect(screen.getByText(AUTOMATION_ERROR_MESSAGE)).toBeInTheDocument());
+        expect(screen.getByText('Lab automation error')).toBeInTheDocument();
+      });
+
+      it('does not advance when Skip module cannot solve the lab', async () => {
+        mockConfig(devModeAutomationConfig
+          .replace("scripts: ['setup', 'validation']", "scripts: ['setup', 'validation', 'solve']")
+          .replace('antora:', '  - name: Terminal\n    url: https://terminal.example.com\nantora:'));
+        mockExecuteStageAndGetStatus.mockResolvedValue({ Status: 'failed' });
+
+        render(<TestWrapper><App /></TestWrapper>);
+        await waitFor(() => expect(screen.getByText('Skip module')).toBeInTheDocument());
+        fireEvent.click(screen.getByText('Skip module'));
+
+        await waitFor(() => expect(screen.getByText(AUTOMATION_ERROR_MESSAGE)).toBeInTheDocument());
+        expect(mockExecuteStageAndGetStatus).toHaveBeenCalledWith('module-one', 'solve');
+        expect(mockExecuteStageAndGetStatus).not.toHaveBeenCalledWith('module-one', 'validation');
+        expect((document.querySelector('iframe.app__instructions') as HTMLIFrameElement).getAttribute('src')).toContain('module-one');
+      });
 
       it('Disabled mode: Next skips the validation call entirely and advances immediately', async () => {
         mockConfig(devModeAutomationConfig);

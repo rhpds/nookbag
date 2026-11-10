@@ -64,6 +64,13 @@ Check `kubectl get pods` output.
 - The UI reads its configuration once at startup from `./ui-config.yml` (or `./zero-touch-config.yml` if present).
 - In guided mode, it also fetches module script config (setup/solve/validation) from the runner API (`/runner/api/config`). This fetch tries up to 3 times (5 s timeout each) to handle the case where nookbag loads before the automation service has finished starting. If the service is permanently unavailable, the page loads normally without automation buttons.
 
+## Diagnostics page:
+
+- `/diagnostics.html` is a standalone, unauthenticated page for debugging "the lab feels slow" reports — run it, then use its **Copy All** button to paste a plain-text report into Slack.
+- It is plain HTML/JS in `src/public/` (same pattern as `placeholder.html`), so it keeps working even if `ui-config.yml` or the automation API is broken.
+- It checks browser/connection info, page load timing, clock skew, latency to this lab / the automation sidecar / every configured `tabs[]` service / fixed internet baselines, a rough throughput sample, and server-side pod diagnostics via `/runner/api/diagnostics`.
+- See [docs/DIAGNOSTICS.md](docs/DIAGNOSTICS.md) for the full breakdown and a sequence diagram.
+
 ## Build:
 
 - `npm run build` produces the static site in `dist/` (production behavior unchanged).
